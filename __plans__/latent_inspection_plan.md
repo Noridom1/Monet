@@ -1,6 +1,9 @@
 # Plan: Inspecting Monet Latent Tokens (Logit-Lens + Attention)
 
-Status: **draft / pre-implementation**
+Status: **implemented** — all files under `inspection/` exist; pending A100 run.
+  Phase A: `generate_latents.py` (validated: PASS, see §5.1 note below).
+  Phase B: `logit_lens.py`, `attn_hook.py`, `inspect.py`, `visualize.py` (Objectives A+B).
+  Run order on A100: `bash inspection/run_phase_a.sh` then `bash inspection/run_phase_b.sh`.
 Owner: research (LVR interpretability)
 Scope: read-only analysis tooling. No change to training/inference behaviour.
 
