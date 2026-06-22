@@ -4,7 +4,8 @@ from inference.load_and_gen_vllm import *
 import os
 import PIL
 import re
-model_path = 'Path/to/your/model'
+model_path = os.environ.get('MODEL_PATH', 'Path/to/your/model')
+gpu_memory_utilization = float(os.environ.get('GPU_MEMORY_UTILIZATION', '0.8'))
 def replace_abs_vis_token_content(s: str) -> str:
     pattern = re.compile(r'(<abs_vis_token>)(.*?)(</abs_vis_token>)', flags=re.DOTALL)
     return pattern.sub(r'\1<latent>\3', s)
@@ -12,7 +13,7 @@ def replace_abs_vis_token_content(s: str) -> str:
 
 def main():
     
-    mllm, sampling_params = vllm_mllm_init(model_path, tp=1, gpu_memory_utilization=0.8)
+    mllm, sampling_params = vllm_mllm_init(model_path, tp=1, gpu_memory_utilization=gpu_memory_utilization)
     processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
 
     conversations = [
