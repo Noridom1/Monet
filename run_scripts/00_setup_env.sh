@@ -25,8 +25,9 @@ conda activate "$ENV_NAME"
 echo "[setup] installing requirements (vllm==0.10.0, transformers==4.54.0, ...)"
 pip install -r "$REPO_DIR/requirements.txt"
 
-# Hugging Face downloader CLI + fast transfer (used by 01_download_model.sh)
-pip install -U "huggingface_hub[cli,hf_transfer]"
+# Hugging Face downloader CLI + fast transfer (used by 01_download_model.sh).
+# Pin <1.0: transformers==4.54.0 and tokenizers require huggingface-hub<1.0,>=0.34.0.
+pip install "huggingface_hub[cli,hf_transfer]>=0.34.0,<1.0"
 
 echo
 echo "[setup] DONE. Environment '${ENV_NAME}' is ready."
