@@ -74,7 +74,9 @@ def teacher_forced_pass(model, trace, capture_query, capture_keys, device="cuda"
     position_ids, _ = inner.get_rope_index(input_ids, grid, None, attention_mask=attn)
 
     attn_hook.configure(capture_query, capture_keys)
-    attn_hook.install()
+    n_hooked = attn_hook.install(model)
+    if capture_query:
+        print(f"[Phase B] attention pre-hooks installed on {n_hooked} modules")
     try:
         out = text(
             inputs_embeds=embeds,
@@ -92,16 +94,23 @@ def teacher_forced_pass(model, trace, capture_query, capture_keys, device="cuda"
 
 @torch.no_grad()
 def _replay_gate(last_hidden, latent_hidden, latent_positions, device):
+    """Does the teacher-forced replay reproduce generation at each latent?
+
+    Compared via cosine + relative-L2, NOT absolute diff: Qwen hidden states have
+    massive-activation dims (magnitude ~100s), so bf16 rounding alone gives an absolute
+    error ~1-2 that says nothing about faithfulness. Relative-L2 ~= sqrt(2*(1-cos)).
+    """
     lh = latent_hidden.to(device=device, dtype=last_hidden.dtype)
-    diffs, coss = [], []
+    coss, rels, diffs = [], [], []
     for k, pos in enumerate(latent_positions):
-        produced = last_hidden[pos - 1]
-        captured = lh[k]
+        produced = last_hidden[pos - 1].float()
+        captured = lh[k].float()
+        coss.append(torch.nn.functional.cosine_similarity(produced, captured, dim=0).item())
+        rels.append(((produced - captured).norm()
+                     / captured.norm().clamp_min(1e-6)).item())
         diffs.append((produced - captured).abs().max().item())
-        coss.append(torch.nn.functional.cosine_similarity(
-            produced.float(), captured.float(), dim=0).item())
-    return {"max_abs_diff": max(diffs), "min_cosine": min(coss),
-            "ok": bool(min(coss) > 0.99 and max(diffs) < 5e-2)}
+    return {"min_cosine": min(coss), "max_rel_l2": max(rels), "max_abs_diff": max(diffs),
+            "ok": bool(min(coss) > 0.999 and max(rels) < 0.05)}
 
 
 def _stack_buffer(buffer, n_layers):
@@ -158,8 +167,12 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
     last_hidden = last_hidden[0]
 
     gate = _replay_gate(last_hidden, latent_hidden, latent_positions, device)
-    print(f"[Phase B] replay==generation gate: max|Δ|={gate['max_abs_diff']:.4e} "
-          f"min_cos={gate['min_cosine']:.6f} -> {'OK' if gate['ok'] else 'CHECK'}")
+    print(f"[Phase B] replay==generation gate: min_cos={gate['min_cosine']:.6f} "
+          f"rel_l2={gate['max_rel_l2']:.4f} (abs={gate['max_abs_diff']:.2f}, bf16 noise) "
+          f"-> {'OK' if gate['ok'] else 'CHECK'}")
+    print(f"[Phase B] captured attention layers = {len(buffer)}"
+          + ("" if buffer or not do_attention
+             else "  <-- EMPTY: the attn hook did not fire; Objective B will be skipped"))
 
     # ---- A.2 depth-resolved logit lens at latent positions ----
     n_lp1 = len(hs)
@@ -231,8 +244,8 @@ def _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
     L.append(f"- latent tokens: **{meta.get('num_latent', len(final_records))}** "
              f"in **{meta.get('num_latent_blocks', '?')}** block(s)")
     L.append(f"- LATENT_SIZE: **{meta.get('latent_size', '?')}**")
-    L.append(f"- replay==generation gate: max|Δ|=`{gate['max_abs_diff']:.3e}` "
-             f"min_cos=`{gate['min_cosine']:.5f}` -> "
+    L.append(f"- replay==generation gate: min_cos=`{gate['min_cosine']:.5f}` "
+             f"rel_l2=`{gate['max_rel_l2']:.4f}` -> "
              f"**{'PASS' if gate['ok'] else 'CHECK — replay diverged'}**\n")
     L.append("## A.1 — Final-layer logit lens (top-8 per latent)\n")
     L.append("| latent | block:step | top tokens (prob) |")
@@ -267,7 +280,7 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
              f"block(s), LATENT_SIZE **{meta.get('latent_size','?')}**")
     L.append(f"- replay==generation gate: "
              f"**{'PASS' if gate['ok'] else 'CHECK'}** "
-             f"(min_cos `{gate['min_cosine']:.5f}`, max|Δ| `{gate['max_abs_diff']:.2e}`)\n")
+             f"(min_cos `{gate['min_cosine']:.5f}`, rel_l2 `{gate['max_rel_l2']:.4f}`)\n")
     L.append("## Generated text\n")
     L.append("```\n" + trace["generated_text"].strip() + "\n```\n")
     L.append("## What each latent represents (final logit lens, top-5)\n")

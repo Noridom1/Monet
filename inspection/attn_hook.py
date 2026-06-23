@@ -1,10 +1,10 @@
 """Phase B instrument — memory-safe attention capture (Objective B).
 
 ``output_attentions=True`` would materialise ``[layers x heads x S x S]`` (tens of GB at
-VL sequence lengths). Instead we install an instrumented copy of
-``Qwen2_5_VLAttention.forward`` that, for a *chosen set of query rows* and *key columns*,
-recomputes only the sliced attention probabilities — reusing the exact memory-safe recipe
-already in the model (``modeling_qwen2_5_vl_monet.py:1008-1024``):
+VL sequence lengths). Instead we register a **forward pre-hook on each live attention
+module** of the loaded model and, for a chosen set of query rows + key columns, recompute
+only the sliced attention probabilities — reusing the exact memory-safe recipe already in
+the model (``modeling_qwen2_5_vl_monet.py:1008-1024``):
 
     q_b    = query_states[b, :, QUERY_POSS, :]              # [H, Q, D]  post-RoPE
     k_rep  = repeat_kv(key_states, num_key_value_groups)    # [H, S, D]  GQA-expanded
@@ -14,32 +14,31 @@ already in the model (``modeling_qwen2_5_vl_monet.py:1008-1024``):
 
 Peak kept memory is ``O(layers * H * Q * |KEY_COLS|)`` (megabytes), not ``O(layers*H*S^2)``.
 
-The patch delegates the real attention to the original ``forward`` (so model outputs are
-untouched) and only does the extra sliced computation when capture is enabled and we are in
-a single full-sequence pass (``past_key_value is None``). ``install``/``remove`` leave the
-class exactly as found — zero edits to the source file.
+We attach to the *instances* of the loaded model (selected by class name), so capture is
+independent of any module-identity subtleties from the sys.modules patch. The pre-hook only
+reads the attention inputs; it does not change the model's own computation. ``install`` and
+``remove`` add / drop the hooks, leaving the model exactly as found.
 """
 import torch
 
-# Resolved lazily from the (already monkey-patched) Qwen2.5-VL module.
-_ATTN_CLS = None
 _apply_mrope = None
 _repeat_kv = None
+_ATTN_CLS_NAME = "Qwen2_5_VLAttention"
 
 _CAPTURE = {
     "enabled": False,
     "query_poss": [],     # List[int] query (row) positions to keep
     "key_cols": None,     # List[int] key (column) positions to keep; None = keep all (costly)
     "buffer": {},         # layer_idx -> Tensor [H, Q, K] float16 on cpu
+    "handles": [],        # registered hook handles
 }
 
 
 def _resolve_symbols():
-    global _ATTN_CLS, _apply_mrope, _repeat_kv
-    if _ATTN_CLS is not None:
+    global _apply_mrope, _repeat_kv
+    if _apply_mrope is not None:
         return
     from transformers.models.qwen2_5_vl import modeling_qwen2_5_vl as m
-    _ATTN_CLS = m.Qwen2_5_VLAttention
     _apply_mrope = m.apply_multimodal_rotary_pos_emb
     _repeat_kv = m.repeat_kv
 
@@ -57,12 +56,9 @@ def get_buffer():
 
 
 def _extract_mask_rows(attention_mask, poss, b, S, device):
-    """Additive [Q, S] bias for the selected query rows; causal fallback if mask is None.
-
-    Mirrors ``_extract_mask_rows`` in the model's collect_emphasize_attn block.
-    """
+    """Additive [Q, S] bias for the selected query rows; causal fallback if mask is None."""
     am = attention_mask
-    if am is not None:
+    if am is not None and torch.is_tensor(am):
         if am.dim() == 4:        # [B, 1, S, S]
             rows = am[b, 0, poss, :]
         elif am.dim() == 3:      # [B, S, S]
@@ -104,36 +100,43 @@ def _capture(attn, hidden_states, attention_mask, position_embeddings):
     if key_cols is not None:
         idx = torch.tensor(key_cols, device=probs.device)
         probs = probs.index_select(-1, idx)                 # [H, Q, K]
-    _CAPTURE["buffer"][attn.layer_idx] = probs.to("cpu", dtype=torch.float16)
+    _CAPTURE["buffer"][int(attn.layer_idx)] = probs.to("cpu", dtype=torch.float16)
 
 
-def _make_patched_forward(orig_forward):
-    def patched(self, hidden_states, attention_mask=None, position_ids=None,
-                past_key_value=None, output_attentions=False, use_cache=False,
-                cache_position=None, position_embeddings=None, **kwargs):
-        if (_CAPTURE["enabled"] and past_key_value is None
-                and position_embeddings is not None):
-            _capture(self, hidden_states, attention_mask, position_embeddings)
-        return orig_forward(
-            self, hidden_states, attention_mask=attention_mask, position_ids=position_ids,
-            past_key_value=past_key_value, output_attentions=output_attentions,
-            use_cache=use_cache, cache_position=cache_position,
-            position_embeddings=position_embeddings, **kwargs)
-    return patched
+def _pre_hook(module, args, kwargs):
+    if not _CAPTURE["enabled"]:
+        return
+    hs = kwargs.get("hidden_states", args[0] if args else None)
+    pe = kwargs.get("position_embeddings")
+    am = kwargs.get("attention_mask")
+    pkv = kwargs.get("past_key_value")
+    if hs is None or pe is None or pkv is not None:   # only the single full-seq pass
+        return
+    _capture(module, hs, am, pe)
 
 
-def install():
-    """Monkey-patch the attention forward. Idempotent."""
+def install(model):
+    """Register pre-hooks on every attention module of the loaded model. Idempotent."""
     _resolve_symbols()
-    if getattr(_ATTN_CLS, "_monet_orig_forward", None) is None:
-        _ATTN_CLS._monet_orig_forward = _ATTN_CLS.forward
-        _ATTN_CLS.forward = _make_patched_forward(_ATTN_CLS._monet_orig_forward)
+    if _CAPTURE["handles"]:
+        _CAPTURE["enabled"] = True
+        return len(_CAPTURE["handles"])
+    n = 0
+    for mod in model.modules():
+        if type(mod).__name__ == _ATTN_CLS_NAME and hasattr(mod, "q_proj"):
+            h = mod.register_forward_pre_hook(_pre_hook, with_kwargs=True)
+            _CAPTURE["handles"].append(h)
+            n += 1
     _CAPTURE["enabled"] = True
+    if n == 0:
+        print("[attn_hook] WARNING: no attention modules matched "
+              f"'{_ATTN_CLS_NAME}'; Objective B will be empty.")
+    return n
 
 
 def remove():
-    """Restore the original forward and disable capture."""
+    """Remove all hooks and disable capture."""
     _CAPTURE["enabled"] = False
-    if _ATTN_CLS is not None and getattr(_ATTN_CLS, "_monet_orig_forward", None) is not None:
-        _ATTN_CLS.forward = _ATTN_CLS._monet_orig_forward
-        del _ATTN_CLS._monet_orig_forward
+    for h in _CAPTURE["handles"]:
+        h.remove()
+    _CAPTURE["handles"] = []
