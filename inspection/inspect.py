@@ -123,6 +123,50 @@ def _stack_buffer(buffer, n_layers):
     return arr
 
 
+@torch.no_grad()
+def _latent_redundancy(latent_hidden):
+    """How many independent directions do the N latents use? (participation ratio + cosines)."""
+    H = latent_hidden.float()
+    n = H.shape[0]
+    Hn = H / H.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+    cos = (Hn @ Hn.T)
+    s = torch.linalg.svdvals(H - H.mean(0, keepdim=True))
+    lam = s ** 2
+    pr = (lam.sum() ** 2 / (lam ** 2).sum().clamp_min(1e-12)).item()
+    var_share = (lam / lam.sum().clamp_min(1e-12)).tolist()
+    iu = torch.triu_indices(n, n, offset=1)
+    off = cos[iu[0], iu[1]]
+    return {"pr": pr, "n": n, "var_share": var_share, "cos": cos.numpy(),
+            "mean_offdiag": off.mean().item(), "min_offdiag": off.min().item(),
+            "max_offdiag": off.max().item()}
+
+
+@torch.no_grad()
+def _nearest_image_patch(trace, latent_positions, image_positions, topk=5):
+    """Cosine of each latent vector to every image-patch embedding (same input-embedding space).
+
+    A token-decodability-free localiser: 'which image region is this latent closest to?'
+    Both latents and image patches are taken from ``inputs_embeds`` so they share one space.
+    """
+    emb = trace["inputs_embeds"].float()
+    lat = emb[latent_positions]
+    img = emb[image_positions]
+    latn = lat / lat.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+    imgn = img / img.norm(dim=-1, keepdim=True).clamp_min(1e-9)
+    cos = latn @ imgn.T                                  # [N_lat, N_img]
+    tv, ti = cos.topk(min(topk, cos.shape[1]), dim=-1)
+    return cos.numpy(), tv.numpy(), ti.numpy()
+
+
+def _patch_rc(idx, grid_thw, merge):
+    """Merged-grid (row, col) of a flat image-patch index for a single image."""
+    g = np.asarray(grid_thw).reshape(-1, 3)
+    if g.shape[0] != 1:
+        return None
+    gh, gw = int(g[0, 1]) // merge, int(g[0, 2]) // merge
+    return int(idx) // gw, int(idx) % gw, gh, gw
+
+
 def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attention=True):
     trace = torch.load(trace_path, map_location="cpu", weights_only=False)
     out_dir = os.path.dirname(trace_path)
@@ -156,6 +200,28 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
         })
     with open(os.path.join(out_dir, "logit_lens_final.json"), "w") as f:
         json.dump(final_records, f, indent=2, ensure_ascii=False)
+
+    # ---- latent redundancy (effective rank + pairwise cosine) ----
+    redundancy = _latent_redundancy(latent_hidden)
+    np.savez_compressed(os.path.join(out_dir, "latent_redundancy.npz"),
+                        cosine=redundancy["cos"],
+                        var_share=np.array(redundancy["var_share"]),
+                        participation_ratio=np.array(redundancy["pr"]))
+    print(f"[Phase B] latent block: effective rank (PR) = {redundancy['pr']:.2f} of "
+          f"{redundancy['n']}; mean off-diagonal cosine = {redundancy['mean_offdiag']:.3f}")
+
+    # ---- nearest image patch per latent (cosine in input-embedding space) ----
+    nearest = None
+    if image_positions:
+        cos_map, top_v, top_i = _nearest_image_patch(trace, latent_positions, image_positions)
+        grid_np = trace["image_grid_thw"].numpy() if trace["image_grid_thw"] is not None else None
+        nearest = {"cos_map": cos_map, "top_v": top_v, "top_i": top_i,
+                   "grid_thw": grid_np, "merge": int(trace["spatial_merge_size"])}
+        np.savez_compressed(os.path.join(out_dir, "nearest_image_patch.npz"),
+                            cos_map=cos_map, top_values=top_v, top_indices=top_i,
+                            latent_positions=np.array(latent_positions),
+                            image_positions=np.array(image_positions),
+                            image_grid_thw=grid_np, spatial_merge_size=nearest["merge"])
 
     # ---- build capture index sets, then ONE replay ----
     text_positions = _select_text_queries(trace, latent_positions) if do_attention else []
@@ -224,6 +290,8 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
             from inspection import visualize
             visualize.render_all(out_dir, attn_summary, latent_positions, tokenizer,
                                   trace, image_path)
+            if nearest is not None:
+                visualize.render_nearest(out_dir, nearest, image_path)
         except Exception as e:  # pragma: no cover - plotting is best-effort
             print(f"[Phase B] visualisation skipped ({type(e).__name__}: {e}); "
                   f"npz artifacts still written.")
@@ -231,7 +299,7 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
     _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
                     tokenizer, gate, k, attn_summary, latent_positions)
     _write_report(out_dir, trace, final_records, gate, attn_summary, latent_positions,
-                  tokenizer)
+                  tokenizer, redundancy, nearest)
     print(f"[Phase B] artifacts written -> {out_dir}")
 
 
@@ -271,16 +339,35 @@ def _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
 
 
 def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_positions,
-                  tokenizer):
+                  tokenizer, redundancy=None, nearest=None):
     meta = trace.get("meta", {})
+    n_lat = len(final_records)
     L = []
     L.append("# Monet latent inspection report\n")
     L.append(f"- sequence length **{trace['input_ids'].shape[0]}**, "
-             f"latents **{len(final_records)}** in **{meta.get('num_latent_blocks','?')}** "
+             f"latents **{n_lat}** in **{meta.get('num_latent_blocks','?')}** "
              f"block(s), LATENT_SIZE **{meta.get('latent_size','?')}**")
     L.append(f"- replay==generation gate: "
              f"**{'PASS' if gate['ok'] else 'CHECK'}** "
              f"(min_cos `{gate['min_cosine']:.5f}`, rel_l2 `{gate['max_rel_l2']:.4f}`)\n")
+
+    # ---- redundancy ----
+    if redundancy is not None:
+        L.append("## Latent redundancy (how many distinct 'thoughts'?)\n")
+        L.append(f"- **effective rank (participation ratio) = {redundancy['pr']:.2f}** "
+                 f"of {redundancy['n']} latents")
+        vs = redundancy["var_share"][:3]
+        L.append(f"- variance share of top directions: "
+                 + ", ".join(f"{v*100:.0f}%" for v in vs))
+        L.append(f"- pairwise cosine (off-diagonal): mean `{redundancy['mean_offdiag']:.3f}`, "
+                 f"min `{redundancy['min_offdiag']:.3f}`, max `{redundancy['max_offdiag']:.3f}`\n")
+        cos = redundancy["cos"]
+        L.append("| | " + " | ".join(f"L{j}" for j in range(n_lat)) + " |")
+        L.append("|---|" + "---|" * n_lat)
+        for i in range(n_lat):
+            L.append(f"| **L{i}** | " + " | ".join(f"{cos[i,j]:.2f}" for j in range(n_lat)) + " |")
+        L.append("")
+
     L.append("## Generated text\n")
     L.append("```\n" + trace["generated_text"].strip() + "\n```\n")
     L.append("## What each latent represents (final logit lens, top-5)\n")
@@ -290,27 +377,64 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
         cells = ", ".join(f"`{t['token_str']}` ({t['prob']:.2f})" for t in r["topk"][:5])
         L.append(f"| {r['latent_idx']} | {cells} |")
     L.append("")
+
+    # ---- nearest image patch ----
+    if nearest is not None:
+        L.append("## Nearest image patch per latent (cosine, input-embedding space)\n")
+        L.append("Token-decodability-free localiser: the image patch whose embedding is most "
+                 "similar to each latent. Grid position is (row%, col%) of the image.\n")
+        L.append("| latent | top-1 cosine | grid (row%, col%) | top-3 patches (row%,col%) |")
+        L.append("|---|---|---|---|")
+        for li in range(nearest["top_i"].shape[0]):
+            best = int(nearest["top_i"][li, 0]); bv = float(nearest["top_v"][li, 0])
+            rc = _patch_rc(best, nearest["grid_thw"], nearest["merge"])
+            if rc is None:
+                L.append(f"| {li} | {bv:.3f} | (multi-image) | — |")
+                continue
+            r0, c0, gh, gw = rc
+            top3 = []
+            for j in range(min(3, nearest["top_i"].shape[1])):
+                rcj = _patch_rc(int(nearest["top_i"][li, j]), nearest["grid_thw"], nearest["merge"])
+                top3.append(f"({rcj[0]/gh:.0%},{rcj[1]/gw:.0%})")
+            L.append(f"| {li} | {bv:.3f} | ({r0/gh:.0%}, {c0/gw:.0%}) | {', '.join(top3)} |")
+        L.append("\nSee `heatmaps/latent{i}_nearest.png` for the cosine map overlaid on the image.\n")
+
+    # ---- attention ----
     if attn_summary is not None:
-        t2l = attn_summary["text2latent"].astype(np.float32).mean(axis=(0, 1))  # [Q_text, N_lat]
-        per_latent = t2l.mean(axis=0)                                            # [N_lat]
-        L.append("## Objective B — attention summary\n")
-        L.append("**text → latent** (mean attention from generated tokens to each latent, "
-                 "averaged over layers/heads):\n")
-        L.append("| latent | mean text→latent attn |")
-        L.append("|---|---|")
-        for li in range(per_latent.shape[0]):
-            L.append(f"| {li} | {per_latent[li]:.4f} |")
+        A = attn_summary["text2latent"].astype(np.float32)        # [L,H,Q,N_lat]
+        text_pos = np.asarray(attn_summary["text_positions"])
+        block_end = int(max(latent_positions)) + 1
+        massq = A.sum(axis=-1).max(axis=(0, 1))                    # [Q] strongest reader per query
+        order = np.argsort(massq)[::-1][:6]
+        L.append("## Objective B.1 — text → latent (readout)\n")
+        L.append("Strongest reader (max over layers/heads) of the latent block, by generated "
+                 "token. Uniform baseline for the 10-token block ≈ "
+                 f"`{10/trace['input_ids'].shape[0]:.4f}`.\n")
+        L.append("| query token | offset after block | max latent-block attn |")
+        L.append("|---|---|---|")
+        for q in order:
+            off = int(text_pos[q]) - block_end
+            L.append(f"| pos {int(text_pos[q])} | +{off} | {massq[q]:.3f} |")
         L.append("")
-        L.append("See `attn_text2latent.png` and `heatmaps/` for latent→image overlays "
-                 "(full per-layer/head tensors in the `.npz` files).\n")
+        if attn_summary["latent2image"] is not None:
+            img_mass = attn_summary["latent2image"].astype(np.float32).sum(axis=-1).mean()
+            L.append(f"## Objective B.2 — latent → image\n")
+            L.append(f"- mean attention mass each latent places on the image: "
+                     f"**{img_mass:.3f}**")
+            L.append("- spatial overlays (sink-suppressed) in `heatmaps/latent{i}_overlay.png`; "
+                     "full `[L,H,N_lat,N_img]` tensor in `attn_latent2image.npz`.\n")
         if os.path.exists(os.path.join(out_dir, "attn_text2latent.png")):
             L.append("![text to latent](attn_text2latent.png)\n")
         hdir = os.path.join(out_dir, "heatmaps")
         if os.path.isdir(hdir):
-            for li in range(len(final_records)):
-                fn = f"latent{li}_overlay.png"
-                if os.path.exists(os.path.join(hdir, fn)):
-                    L.append(f"latent {li}: ![latent {li}](heatmaps/{fn})")
+            for li in range(n_lat):
+                parts = []
+                for tag in ("overlay", "nearest"):
+                    fn = f"latent{li}_{tag}.png"
+                    if os.path.exists(os.path.join(hdir, fn)):
+                        parts.append(f"![latent {li} {tag}](heatmaps/{fn})")
+                if parts:
+                    L.append(f"latent {li}: " + " ".join(parts))
     with open(os.path.join(out_dir, "report.md"), "w") as f:
         f.write("\n".join(L) + "\n")
 

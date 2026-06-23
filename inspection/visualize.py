@@ -29,6 +29,15 @@ def _grid_hw(grid_thw, merge, n_image):
     return gh, gw
 
 
+def _suppress_sinks(B):
+    """Zero each (layer,head,latent)'s single argmax patch — those are attention sinks
+    (degenerate patches that soak up mass without carrying content), so they dominate the
+    overlays. Returns a copy."""
+    flat = B.reshape(-1, B.shape[-1]).copy()
+    flat[np.arange(flat.shape[0]), flat.argmax(axis=1)] = 0.0
+    return flat.reshape(B.shape)
+
+
 def render_all(out_dir, attn_summary, latent_positions, tokenizer, trace, image_path):
     import matplotlib
     matplotlib.use("Agg")
@@ -37,7 +46,7 @@ def render_all(out_dir, attn_summary, latent_positions, tokenizer, trace, image_
     hdir = os.path.join(out_dir, "heatmaps")
     os.makedirs(hdir, exist_ok=True)
 
-    l2i = attn_summary["latent2image"].astype(np.float32)   # [L, H, N_lat, N_img]
+    l2i = _suppress_sinks(attn_summary["latent2image"].astype(np.float32))  # [L,H,N_lat,N_img]
     t2l = attn_summary["text2latent"].astype(np.float32)    # [L, H, Q_text, N_lat]
     n_lat = l2i.shape[2]
     n_img = l2i.shape[3]
@@ -71,7 +80,7 @@ def render_all(out_dir, attn_summary, latent_positions, tokenizer, trace, image_
     for li in range(n_lat):
         heat = l2i_mean[li].reshape(gh, gw)
         _overlay(plt, img, heat, os.path.join(hdir, f"latent{li}_overlay.png"),
-                 title=f"latent {li} → image (mean layers/heads)")
+                 title=f"latent {li} → image (sink-suppressed, mean L/H)")
 
     # per-layer small multiples for each latent
     n_layers = l2i.shape[0]
@@ -117,3 +126,29 @@ def _resize(arr, out_h, out_w):
     ys = (np.linspace(0, gh - 1, out_h)).round().astype(int)
     xs = (np.linspace(0, gw - 1, out_w)).round().astype(int)
     return arr[ys][:, xs]
+
+
+def render_nearest(out_dir, nearest, image_path):
+    """Overlay each latent's cosine-to-image-patch map on the image (token-free localiser)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    cos = nearest["cos_map"].astype(np.float32)         # [N_lat, N_img]
+    grid = nearest["grid_thw"]; merge = nearest["merge"]
+    n_img = cos.shape[1]
+    gh_gw = _grid_hw(grid, merge, n_img)
+    if gh_gw is None:
+        print("[viz] nearest-patch: cannot fold to 2D grid; skipped.")
+        return
+    gh, gw = gh_gw
+    hdir = os.path.join(out_dir, "heatmaps")
+    os.makedirs(hdir, exist_ok=True)
+    img = None
+    if image_path and os.path.exists(image_path):
+        from PIL import Image
+        img = Image.open(image_path).convert("RGB")
+    for li in range(cos.shape[0]):
+        heat = cos[li].reshape(gh, gw)
+        _overlay(plt, img, heat, os.path.join(hdir, f"latent{li}_nearest.png"),
+                 title=f"latent {li}: cosine to image patches")
