@@ -29,6 +29,7 @@ clearly-marked block. Instructions are printed by this script on completion.
 ====================================================================================
 """
 import os
+import json
 import argparse
 from dataclasses import dataclass, field, asdict
 from typing import List, Optional
@@ -253,6 +254,28 @@ def _answer_positions(seq_ids: List[int], pattern: List[int]) -> List[int]:
     return list(range(start, n)) if start is not None else []
 
 
+def conversation_from_sample(sample: dict, system_prompt: str, data_root: str) -> list:
+    """Build a (system + user) conversation from a manifest sample, mirroring eval-time input.
+
+    ``data_root`` is the directory holding ``samples.json`` so ``sample['image']`` (a relative
+    path) resolves. The system prompt matches VLMEvalKit/run_monet.py so the captured run
+    reproduces the eval prediction.
+    """
+    img_path = os.path.join(data_root, sample["image"])
+    conv = []
+    if system_prompt:
+        conv.append({"role": "system",
+                     "content": [{"type": "text", "text": system_prompt}]})
+    conv.append({
+        "role": "user",
+        "content": [
+            {"type": "text", "text": sample["question_text"]},
+            {"type": "image", "image": PIL.Image.open(img_path).convert("RGB")},
+        ],
+    })
+    return conv
+
+
 def _demo_conversation():
     """The same example as inference/vllm_inference_example.py."""
     return [
@@ -271,30 +294,76 @@ def _demo_conversation():
     ]
 
 
+def _save_trace(trace, out_path, label=""):
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    torch.save(asdict(trace), out_path)
+    print(f"[Phase A]{(' ' + label) if label else ''} saved trace -> {out_path}  "
+          f"(seq_len={trace.meta['seq_len']}, "
+          f"num_latent={trace.meta['num_latent']} in {trace.meta['num_latent_blocks']} block(s))")
+
+
+def _run_batch(args, model, processor, special_ids):
+    """Capture a trace per sample in a manifest, keeping the model loaded throughout."""
+    with open(args.manifest) as f:
+        manifest = json.load(f)
+    data_root = os.path.dirname(os.path.abspath(args.manifest))
+    system_prompt = manifest.get("system_prompt", "")
+    samples = manifest["samples"]
+    print(f"[Phase A] manifest {args.manifest}: {len(samples)} samples -> {args.out_dir}")
+
+    for i, sample in enumerate(samples):
+        sid = sample["id"]
+        print(f"[Phase A] ({i + 1}/{len(samples)}) sample {sid} (idx={sample.get('index')})")
+        conv = conversation_from_sample(sample, system_prompt, data_root)
+        trace = generate_with_latents(
+            model, processor, special_ids,
+            conversation=conv,
+            latent_size=args.latent_size,
+            max_new_tokens=args.max_new_tokens,
+        )
+        # stash eval metadata so Phase B can show correctness alongside the latents
+        trace.meta.update({
+            "sample_id": sid, "bucket": sample.get("bucket"),
+            "index": sample.get("index"), "gold": sample.get("gold"),
+            "pred_letter": sample.get("pred_letter"), "hit": sample.get("hit"),
+            "category": sample.get("category"), "image": sample.get("image"),
+        })
+        _save_trace(trace, os.path.join(args.out_dir, sid, "trace.pt"), label=sid)
+    print("=" * 78)
+    print(f"[Phase A] batch done: {len(samples)} traces under {args.out_dir}")
+    print("  Next: python -m inspection.inspect --manifest "
+          f"{args.manifest} --out_dir {args.out_dir}")
+    print("=" * 78)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_path", default=os.environ.get("MODEL_PATH", "models/Monet-7B"))
     ap.add_argument("--latent_size", type=int, default=int(os.environ.get("LATENT_SIZE", "10")))
     ap.add_argument("--max_new_tokens", type=int, default=1024)
-    ap.add_argument("--out", default="inspection/outputs/demo/trace.pt")
+    ap.add_argument("--out", default="inspection/outputs/demo/trace.pt",
+                    help="single-sample output trace path (ignored when --manifest is set)")
+    ap.add_argument("--manifest", default=None,
+                    help="data/inspect_samples/samples.json — batch mode over multiple samples")
+    ap.add_argument("--out_dir", default="inspection/outputs/eval_samples",
+                    help="batch mode: one <out_dir>/<id>/trace.pt per sample")
     args = ap.parse_args()
 
     model, processor, special_ids = load_monet(args.model_path)
+
+    if args.manifest:
+        _run_batch(args, model, processor, special_ids)
+        return
+
     trace = generate_with_latents(
         model, processor, special_ids,
         conversation=_demo_conversation(),
         latent_size=args.latent_size,
         max_new_tokens=args.max_new_tokens,
     )
-
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    torch.save(asdict(trace), args.out)
+    _save_trace(trace, args.out)
 
     print("=" * 78)
-    print(f"[Phase A] saved trace -> {args.out}")
-    print(f"  seq_len            = {trace.meta['seq_len']}")
-    print(f"  num_latent tokens  = {trace.meta['num_latent']} "
-          f"in {trace.meta['num_latent_blocks']} block(s)")
     print(f"  latent_positions   = {trace.latent_positions}")
     print("-" * 78)
     print("RAW GENERATION (special tokens kept):")

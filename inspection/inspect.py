@@ -168,6 +168,16 @@ def _patch_rc(idx, grid_thw, merge):
 
 
 def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attention=True):
+    """Single-trace entry: load the model, then inspect one trace."""
+    model, processor, _ = load_monet(model_path, device=device)
+    return run_for_trace(trace_path, model, processor, k=k, image_path=image_path,
+                         device=device, do_attention=do_attention)
+
+
+def run_for_trace(trace_path, model, processor, k=20, image_path=None, device="cuda",
+                  do_attention=True):
+    """Inspect one trace with an already-loaded model. Returns a summary dict (or None if
+    the trace has no latents) for cross-sample aggregation."""
     trace = torch.load(trace_path, map_location="cpu", weights_only=False)
     out_dir = os.path.dirname(trace_path)
     meta = trace.get("meta", {})
@@ -181,9 +191,8 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
           f"blocks={len(latent_blocks)} n_image={len(image_positions)}")
     if n_latent == 0:
         print("[Phase B] No latent tokens — nothing to inspect.")
-        return
+        return None
 
-    model, processor, _ = load_monet(model_path, device=device)
     tokenizer = processor.tokenizer
 
     # ---- A.1 final logit lens on captured latents (already post-norm) ----
@@ -302,6 +311,20 @@ def run(trace_path, model_path, k=20, image_path=None, device="cuda", do_attenti
                   tokenizer, redundancy, nearest)
     print(f"[Phase B] artifacts written -> {out_dir}")
 
+    latent_img_mass = None
+    if attn_summary is not None and attn_summary.get("latent2image") is not None:
+        latent_img_mass = float(
+            attn_summary["latent2image"].astype(np.float32).sum(axis=-1).mean())
+    return {
+        "id": meta.get("sample_id", os.path.basename(out_dir)),
+        "out_dir": out_dir, "bucket": meta.get("bucket"), "index": meta.get("index"),
+        "gold": meta.get("gold"), "pred_letter": meta.get("pred_letter"),
+        "hit": meta.get("hit"), "category": meta.get("category"),
+        "n_latent": n_latent, "gate_ok": bool(gate["ok"]),
+        "min_cosine": float(gate["min_cosine"]), "pr": float(redundancy["pr"]),
+        "latent_img_mass": latent_img_mass,
+    }
+
 
 def _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
                     tokenizer, gate, k, attn_summary, latent_positions):
@@ -344,6 +367,17 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
     n_lat = len(final_records)
     L = []
     L.append("# Monet latent inspection report\n")
+    # ---- eval-sample header (batch mode): show whether the model got it right ----
+    if meta.get("sample_id") is not None or meta.get("gold") is not None:
+        gold, pred = meta.get("gold"), meta.get("pred_letter")
+        verdict = ("correct" if (gold is not None and pred == gold)
+                   else "incorrect" if pred is not None else "unparsed")
+        L.append(f"- sample **{meta.get('sample_id', '?')}** "
+                 f"(bucket `{meta.get('bucket','?')}`, dataset index `{meta.get('index','?')}`"
+                 + (f", category `{meta.get('category')}`" if meta.get("category") else "")
+                 + ")")
+        L.append(f"- model answer: gold **{gold}** → predicted **{pred}** "
+                 f"→ **{verdict.upper()}** (judge hit=`{meta.get('hit')}`)\n")
     L.append(f"- sequence length **{trace['input_ids'].shape[0]}**, "
              f"latents **{n_lat}** in **{meta.get('num_latent_blocks','?')}** "
              f"block(s), LATENT_SIZE **{meta.get('latent_size','?')}**")
@@ -439,15 +473,76 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
         f.write("\n".join(L) + "\n")
 
 
+def run_batch(manifest_path, out_dir, model_path, k=20, device="cuda", do_attention=True):
+    """Inspect every sample listed in a manifest, loading the model once.
+
+    Each sample's trace is expected at ``<out_dir>/<id>/trace.pt`` (written by Phase A).
+    Writes per-sample artifacts plus a top-level ``index.md`` comparing all samples.
+    """
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    data_root = os.path.dirname(os.path.abspath(manifest_path))
+    samples = manifest["samples"]
+    print(f"[Phase B] manifest {manifest_path}: {len(samples)} samples")
+
+    model, processor, _ = load_monet(model_path, device=device)
+    summaries = []
+    for i, sample in enumerate(samples):
+        sid = sample["id"]
+        trace_path = os.path.join(out_dir, sid, "trace.pt")
+        if not os.path.exists(trace_path):
+            print(f"[Phase B] ({i + 1}/{len(samples)}) {sid}: trace missing "
+                  f"({trace_path}); skipped.")
+            continue
+        image_path = os.path.join(data_root, sample["image"]) if sample.get("image") else None
+        print(f"[Phase B] ({i + 1}/{len(samples)}) {sid} (idx={sample.get('index')})")
+        summary = run_for_trace(trace_path, model, processor, k=k, image_path=image_path,
+                                device=device, do_attention=do_attention)
+        if summary is not None:
+            summaries.append(summary)
+
+    _write_index(out_dir, summaries)
+    print(f"[Phase B] batch done: {len(summaries)} reports + index.md under {out_dir}")
+    return summaries
+
+
+def _write_index(out_dir, summaries):
+    """Top-level overview comparing correct vs. incorrect samples."""
+    L = ["# Latent inspection — sample index\n"]
+    L.append(f"{len(summaries)} sample(s). Per-sample details in each `<id>/report.md`.\n")
+    L.append("| sample | bucket | idx | gold→pred | verdict | gate | eff.rank (PR) "
+             "| latent→image mass |")
+    L.append("|---|---|---|---|---|---|---|---|")
+    for s in sorted(summaries, key=lambda x: (str(x.get("bucket")), str(x.get("id")))):
+        gold, pred = s.get("gold"), s.get("pred_letter")
+        verdict = ("✓" if (gold is not None and pred == gold)
+                   else "✗" if pred is not None else "?")
+        mass = "—" if s.get("latent_img_mass") is None else f"{s['latent_img_mass']:.3f}"
+        L.append(f"| [{s['id']}]({s['id']}/report.md) | {s.get('bucket','?')} "
+                 f"| {s.get('index','?')} | {gold}→{pred} | {verdict} "
+                 f"| {'PASS' if s.get('gate_ok') else 'CHECK'} | {s.get('pr', 0):.2f} | {mass} |")
+    with open(os.path.join(out_dir, "index.md"), "w") as f:
+        f.write("\n".join(L) + "\n")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trace", default="inspection/outputs/demo/trace.pt")
     ap.add_argument("--model_path", default=os.environ.get("MODEL_PATH", "models/Monet-7B"))
     ap.add_argument("--topk", type=int, default=20)
     ap.add_argument("--image", default="images/example_question.png",
-                    help="original image for latent->image overlays")
+                    help="original image for latent->image overlays (single-sample mode)")
     ap.add_argument("--no_attention", action="store_true", help="logit lens only")
+    ap.add_argument("--manifest", default=None,
+                    help="data/inspect_samples/samples.json — batch mode over multiple samples")
+    ap.add_argument("--out_dir", default="inspection/outputs/eval_samples",
+                    help="batch mode: where Phase A wrote <id>/trace.pt")
     args = ap.parse_args()
+
+    if args.manifest:
+        run_batch(args.manifest, args.out_dir, args.model_path, k=args.topk,
+                  do_attention=not args.no_attention)
+        return
     run(args.trace, args.model_path, k=args.topk, image_path=args.image,
         do_attention=not args.no_attention)
 
