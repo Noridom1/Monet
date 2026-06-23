@@ -18,7 +18,7 @@ from PIL import Image
 
 # quick setup of the parameters
 max_num_seqs = 512
-temperature = 0.1
+temperature = 0.0
 top_k = 50
 top_p = 0.8
 repetition_penalty = 1.01
