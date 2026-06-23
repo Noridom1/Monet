@@ -42,4 +42,10 @@ python -m inspection.inspect \
   --out_dir "$OUT_DIR" \
   --topk 20
 
-echo "[batch] DONE. See $OUT_DIR/index.md and $OUT_DIR/<id>/report.md"
+echo "[batch] === Summary: extract \\boxed{} answers + score vs gold ==="
+python -m inspection.summarize_eval \
+  --manifest "$MANIFEST" \
+  --out_dir "$OUT_DIR" \
+  --model_path "$MODEL_PATH"
+
+echo "[batch] DONE. See $OUT_DIR/{index.md, eval_summary.json} and $OUT_DIR/<id>/report.md"

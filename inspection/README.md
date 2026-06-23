@@ -87,6 +87,88 @@ Phase A prepends the same system prompt VLMEvalKit used
 match the original eval prediction. Each `report.md` and `index.md` shows the gold answer vs.
 the model's predicted letter so you can confirm.
 
+## Batch: inspect a prepared dataset (VisualPuzzles, MathVision, …)
+
+To inspect arbitrary benchmarks downloaded with `run_scripts/05_prepare_data.sh` (which
+writes `data/<name>/{images/, samples.json}`), first adapt that into an inspection manifest.
+The two formats differ — the prepared `samples.json` is a flat list with `question`+`options`
+separate and `answer`, while Phase A/B want a `{system_prompt, samples:[…]}` manifest with
+`question_text` (options inlined) and `gold`. `prepare_dataset_samples.py` bridges them and,
+since these sets have thousands of rows (inspection is expensive), picks **N** samples.
+
+```bash
+# 1. download + normalize the dataset (writes data/<name>/)
+bash run_scripts/05_prepare_data.sh VisualPuzzles
+bash run_scripts/05_prepare_data.sh MathVision --split testmini
+
+# 2. adapt N samples into data/<name>/inspect_manifest.json (reuses the extracted images)
+DATA_DIR=data/VisualPuzzles N=10 MODE=head bash inspection/run_prepare_dataset.sh
+DATA_DIR=data/MathVision   N=10 MODE=random SEED=0 bash inspection/run_prepare_dataset.sh
+
+# 3. capture + analyse — run_batch.sh is unchanged, just point MANIFEST/OUT_DIR at it
+MANIFEST=data/VisualPuzzles/inspect_manifest.json OUT_DIR=inspection/outputs/VisualPuzzles bash inspection/run_batch.sh
+MANIFEST=data/MathVision/inspect_manifest.json   OUT_DIR=inspection/outputs/MathVision   bash inspection/run_batch.sh
+```
+
+You get the same artifacts as the eval-sample flow — per-sample `report.md` (header shows
+gold answer; the model's freshly-captured answer is embedded), `logit_lens.md`, `*.npz`,
+`heatmaps/`, `trace.pt`, and a top-level `index.md`. These datasets carry **no prior model
+prediction**, so `pred_letter` is `None` and `index.md`'s verdict column stays blank — read
+each `report.md`'s generation block for the model's actual answer. Open-ended rows (e.g. some
+MathVision questions without options) keep their raw `gold` string. Field names are
+overridable on `prepare_dataset_samples.py` (`--question_field`/`--options_field`/etc.) if a
+future dataset names things differently.
+
+### `eval_summary.json` — one evaluation-style summary per run
+
+`run_batch.sh` also writes `<OUT_DIR>/eval_summary.json` (via `summarize_eval.py`), scoring
+the run as if it were an eval. It extracts the **last** `\boxed{...}` from each model output
+(brace-balanced, so LaTeX like `\boxed{\frac{1}{2}}` works; `null` if no box) and matches it
+to the gold answer by **case-insensitive exact string match** (no box ⇒ wrong):
+
+```jsonc
+{
+  "metadata": {
+    "dataset": "VisualPuzzles", "model_path": "…/Monet-7B",
+    "num_samples": 10, "indices": [3, 17, …],
+    "num_correct": 5, "num_boxed": 9, "accuracy": 0.5, "correctness": "5/10"
+  },
+  "results": [
+    {"id": "VisualPuzzles_000003", "index": 3,
+     "model_output": "…\\boxed{A}", "gold": "A", "extracted": "A", "correct": true},
+    …
+  ]
+}
+```
+
+It only reads `trace.pt` (no GPU), so you can also produce it straight after Phase A:
+`python -m inspection.summarize_eval --manifest <manifest> --out_dir <out_dir>`.
+
+### `eval_summary.json` — one evaluation-style summary per run
+
+`run_batch.sh` also writes `<OUT_DIR>/eval_summary.json` (via `summarize_eval.py`), scoring
+the run as if it were an eval. It extracts the **last** `\boxed{...}` from each model output
+(brace-balanced, so LaTeX like `\boxed{\frac{1}{2}}` works; `null` if no box) and **exact-
+string-matches** it to the gold answer (no box ⇒ wrong):
+
+```jsonc
+{
+  "metadata": {
+    "dataset": "VisualPuzzles", "model_path": "…/Monet-7B",
+    "num_samples": 10, "indices": [3, 17, …],
+    "num_correct": 5, "num_boxed": 9, "accuracy": 0.5, "correctness": "5/10"
+  },
+  "results": [
+    {"id": "VisualPuzzles_000003", "index": 3,
+     "model_output": "…\\boxed{A}", "gold": "A", "extracted": "A", "correct": true},
+    …
+  ]
+}
+```
+
+It only reads `trace.pt` (no GPU), so you can also produce it straight after Phase A:
+`python -m inspection.summarize_eval --manifest <manifest> --out_dir <out_dir>`.
+
 ## CLI (advanced / single-sample)
 
 ```bash
@@ -106,8 +188,12 @@ python -m inspection.inspect --manifest data/inspect_samples/samples.json --out_
 - `generate_latents.py` — Phase A capture (single `--out` or batch `--manifest`/`--out_dir`).
 - `inspect.py` — Phase B driver; `run_for_trace` (preloaded model) / `run_batch` / `run`.
 - `prepare_eval_samples.py` — build `data/inspect_samples/` from a VLMEvalKit result xlsx.
+- `prepare_dataset_samples.py` — adapt a `run_scripts/05_prepare_data.sh` dataset
+  (`data/<name>/samples.json`) into an inspection manifest (`inspect_manifest.json`).
+- `summarize_eval.py` — score a batch run into `<out_dir>/eval_summary.json` (boxed-answer
+  extraction + correctness); reads traces only, no GPU.
 - `logit_lens.py`, `attn_hook.py`, `visualize.py`, `load_model.py` — analysis helpers.
 - `run_phase_a.sh`, `run_phase_b.sh` — single-example launchers.
-- `run_prepare.sh`, `run_batch.sh` — batch launchers.
+- `run_prepare.sh`, `run_prepare_dataset.sh`, `run_batch.sh` — batch launchers.
 
 Design notes and the validation rationale live in `__plans__/latent_inspection_plan.md`.
