@@ -1,0 +1,1082 @@
+[
+  {
+    "latent_idx": 0,
+    "position": 321,
+    "block_idx": 0,
+    "step_in_block": 0,
+    "topk": [
+      {
+        "token_id": 151666,
+        "token_str": "<abs_vis_token>",
+        "prob": 0.6516837477684021
+      },
+      {
+        "token_id": 785,
+        "token_str": "The",
+        "prob": 0.1366003304719925
+      },
+      {
+        "token_id": 151645,
+        "token_str": "<|im_end|>",
+        "prob": 0.04720781370997429
+      },
+      {
+        "token_id": 151657,
+        "token_str": "<tool_call>",
+        "prob": 0.03244542330503464
+      },
+      {
+        "token_id": 3830,
+        "token_str": "From",
+        "prob": 0.017366783693432808
+      },
+      {
+        "token_id": 1359,
+        "token_str": "By",
+        "prob": 0.011936004273593426
+      },
+      {
+        "token_id": 40,
+        "token_str": "I",
+        "prob": 0.009895294904708862
+      },
+      {
+        "token_id": 49284,
+        "token_str": "Upon",
+        "prob": 0.006388883106410503
+      },
+      {
+        "token_id": 2082,
+        "token_str": "An",
+        "prob": 0.0025019224267452955
+      },
+      {
+        "token_id": 106439,
+        "token_str": "这个地图",
+        "prob": 0.0017741285264492035
+      },
+      {
+        "token_id": 22464,
+        "token_str": "Looking",
+        "prob": 0.0016666394658386707
+      },
+      {
+        "token_id": 1925,
+        "token_str": "On",
+        "prob": 0.0016153625911101699
+      },
+      {
+        "token_id": 151644,
+        "token_str": "<|im_start|>",
+        "prob": 0.0014255524147301912
+      },
+      {
+        "token_id": 86174,
+        "token_str": ".ImageAlign",
+        "prob": 0.0011818243656307459
+      },
+      {
+        "token_id": 3617,
+        "token_str": "TH",
+        "prob": 0.0011818243656307459
+      },
+      {
+        "token_id": 16429,
+        "token_str": "Using",
+        "prob": 0.0011454635532572865
+      },
+      {
+        "token_id": 641,
+        "token_str": "In",
+        "prob": 0.001076063490472734
+      },
+      {
+        "token_id": 11692,
+        "token_str": "ANS",
+        "prob": 0.0010429564863443375
+      },
+      {
+        "token_id": 48449,
+        "token_str": " ons",
+        "prob": 0.0009797668317332864
+      },
+      {
+        "token_id": 6025,
+        "token_str": "After",
+        "prob": 0.0008646412170492113
+      }
+    ]
+  },
+  {
+    "latent_idx": 1,
+    "position": 322,
+    "block_idx": 0,
+    "step_in_block": 1,
+    "topk": [
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.11317101866006851
+      },
+      {
+        "token_id": 1925,
+        "token_str": "On",
+        "prob": 0.09382206946611404
+      },
+      {
+        "token_id": 263,
+        "token_str": "on",
+        "prob": 0.05345820635557175
+      },
+      {
+        "token_id": 785,
+        "token_str": "The",
+        "prob": 0.04431840777397156
+      },
+      {
+        "token_id": 32,
+        "token_str": "A",
+        "prob": 0.039110857993364334
+      },
+      {
+        "token_id": 3564,
+        "token_str": "New",
+        "prob": 0.039110857993364334
+      },
+      {
+        "token_id": 11692,
+        "token_str": "ANS",
+        "prob": 0.03674124926328659
+      },
+      {
+        "token_id": 426,
+        "token_str": "ht",
+        "prob": 0.020934533327817917
+      },
+      {
+        "token_id": 3830,
+        "token_str": "From",
+        "prob": 0.019666172564029694
+      },
+      {
+        "token_id": 2082,
+        "token_str": "An",
+        "prob": 0.016303831711411476
+      },
+      {
+        "token_id": 1249,
+        "token_str": "To",
+        "prob": 0.013516350649297237
+      },
+      {
+        "token_id": 1532,
+        "token_str": " New",
+        "prob": 0.011205448769032955
+      },
+      {
+        "token_id": 90,
+        "token_str": "{",
+        "prob": 0.009289642795920372
+      },
+      {
+        "token_id": 40,
+        "token_str": "I",
+        "prob": 0.008726811967790127
+      },
+      {
+        "token_id": 3617,
+        "token_str": "TH",
+        "prob": 0.008458316326141357
+      },
+      {
+        "token_id": 64,
+        "token_str": "a",
+        "prob": 0.008458316326141357
+      },
+      {
+        "token_id": 2403,
+        "token_str": "All",
+        "prob": 0.007945852354168892
+      },
+      {
+        "token_id": 641,
+        "token_str": "In",
+        "prob": 0.007945852354168892
+      },
+      {
+        "token_id": 596,
+        "token_str": "ans",
+        "prob": 0.007945852354168892
+      },
+      {
+        "token_id": 7,
+        "token_str": "(",
+        "prob": 0.0065873428247869015
+      }
+    ]
+  },
+  {
+    "latent_idx": 2,
+    "position": 323,
+    "block_idx": 0,
+    "step_in_block": 2,
+    "topk": [
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.09957373142242432
+      },
+      {
+        "token_id": 263,
+        "token_str": "on",
+        "prob": 0.028528351336717606
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.028528351336717606
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.01960722915828228
+      },
+      {
+        "token_id": 22209,
+        "token_str": "tv",
+        "prob": 0.01730331778526306
+      },
+      {
+        "token_id": 82,
+        "token_str": "s",
+        "prob": 0.01730331778526306
+      },
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.013475839048624039
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.013475839048624039
+      },
+      {
+        "token_id": 1249,
+        "token_str": "To",
+        "prob": 0.012659378349781036
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.012659378349781036
+      },
+      {
+        "token_id": 339,
+        "token_str": "th",
+        "prob": 0.011892386712133884
+      },
+      {
+        "token_id": 15,
+        "token_str": "0",
+        "prob": 0.011892386712133884
+      },
+      {
+        "token_id": 983,
+        "token_str": "to",
+        "prob": 0.01049499399960041
+      },
+      {
+        "token_id": 2493,
+        "token_str": "pi",
+        "prob": 0.01049499399960041
+      },
+      {
+        "token_id": 32,
+        "token_str": "A",
+        "prob": 0.009859134443104267
+      },
+      {
+        "token_id": 1925,
+        "token_str": "On",
+        "prob": 0.009859134443104267
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.008700654841959476
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.008173509500920773
+      },
+      {
+        "token_id": 11259,
+        "token_str": " standing",
+        "prob": 0.00767830153927207
+      },
+      {
+        "token_id": 85,
+        "token_str": "v",
+        "prob": 0.00767830153927207
+      }
+    ]
+  },
+  {
+    "latent_idx": 3,
+    "position": 324,
+    "block_idx": 0,
+    "step_in_block": 3,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.17068196833133698
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.08582428842782974
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.04054052382707596
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.03360927104949951
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.03360927104949951
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.024589071050286293
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.023099292069673538
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.020385054871439934
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.019149985164403915
+      },
+      {
+        "token_id": 1249,
+        "token_str": "To",
+        "prob": 0.009629218839108944
+      },
+      {
+        "token_id": 6005,
+        "token_str": "cor",
+        "prob": 0.009045813232660294
+      },
+      {
+        "token_id": 101162,
+        "token_str": "相对",
+        "prob": 0.008497755043208599
+      },
+      {
+        "token_id": 983,
+        "token_str": "to",
+        "prob": 0.006217090412974358
+      },
+      {
+        "token_id": 11259,
+        "token_str": " standing",
+        "prob": 0.005486563313752413
+      },
+      {
+        "token_id": 9983,
+        "token_str": "fi",
+        "prob": 0.005154149141162634
+      },
+      {
+        "token_id": 15,
+        "token_str": "0",
+        "prob": 0.004841875284910202
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.004841875284910202
+      },
+      {
+        "token_id": 1317,
+        "token_str": "IC",
+        "prob": 0.004548520315438509
+      },
+      {
+        "token_id": 10070,
+        "token_str": "standing",
+        "prob": 0.004548520315438509
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.004272939637303352
+      }
+    ]
+  },
+  {
+    "latent_idx": 4,
+    "position": 325,
+    "block_idx": 0,
+    "step_in_block": 4,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.29750552773475647
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.11650483310222626
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.04562395066022873
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.03135685250163078
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.03135685250163078
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.02767232432961464
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.02599574252963066
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.01901889219880104
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.010836638510227203
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.010180079378187656
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.006174529902637005
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.0058004348538815975
+      },
+      {
+        "token_id": 1249,
+        "token_str": "To",
+        "prob": 0.005118865054100752
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.00480872904881835
+      },
+      {
+        "token_id": 983,
+        "token_str": "to",
+        "prob": 0.004517382476478815
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.004243688192218542
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.003986576572060585
+      },
+      {
+        "token_id": 5025,
+        "token_str": " relationship",
+        "prob": 0.003745042020455003
+      },
+      {
+        "token_id": 90803,
+        "token_str": " relat",
+        "prob": 0.003745042020455003
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.0031047489028424025
+      }
+    ]
+  },
+  {
+    "latent_idx": 5,
+    "position": 326,
+    "block_idx": 0,
+    "step_in_block": 5,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.26775097846984863
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.16239917278289795
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.05272328853607178
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.036236152052879333
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.02822074480354786
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.0265109371393919
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.017116745933890343
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.012522879987955093
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.011764156632125378
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.009752828627824783
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.008606841787695885
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.007595510687679052
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.007135321851819754
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.004606910049915314
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.004327791277319193
+      },
+      {
+        "token_id": 1249,
+        "token_str": "To",
+        "prob": 0.0038192623760551214
+      },
+      {
+        "token_id": 983,
+        "token_str": "to",
+        "prob": 0.0038192623760551214
+      },
+      {
+        "token_id": 5025,
+        "token_str": " relationship",
+        "prob": 0.0038192623760551214
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.0035878652706742287
+      },
+      {
+        "token_id": 44707,
+        "token_str": "nor",
+        "prob": 0.0033704873640090227
+      }
+    ]
+  },
+  {
+    "latent_idx": 6,
+    "position": 327,
+    "block_idx": 0,
+    "step_in_block": 6,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.2231035977602005
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.18495938181877136
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.05640942603349686
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.036420661956071854
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.026645926758646965
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.025031529366970062
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.013398412615060806
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.012586644850671291
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.010434694588184357
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.010434694588184357
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.010434694588184357
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.00980248861014843
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.0059455097652971745
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.00492900051176548
+      },
+      {
+        "token_id": 44707,
+        "token_str": "nor",
+        "prob": 0.00492900051176548
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.004630367271602154
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.004349828232079744
+      },
+      {
+        "token_id": 811,
+        "token_str": "ne",
+        "prob": 0.004086284898221493
+      },
+      {
+        "token_id": 983,
+        "token_str": "to",
+        "prob": 0.0036061338614672422
+      },
+      {
+        "token_id": 68,
+        "token_str": "e",
+        "prob": 0.0036061338614672422
+      }
+    ]
+  },
+  {
+    "latent_idx": 7,
+    "position": 328,
+    "block_idx": 0,
+    "step_in_block": 7,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.19603468477725983
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.18415755033493042
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.056164879351854324
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.034065715968608856
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.02653040923178196
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.023413004353642464
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.01609150692820549
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.015116571448743343
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.01105952076613903
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.010389457456767559
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.010389457456767559
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.008091318421065807
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.0063015250489115715
+      },
+      {
+        "token_id": 44707,
+        "token_str": "nor",
+        "prob": 0.0063015250489115715
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.005561076104640961
+      },
+      {
+        "token_id": 811,
+        "token_str": "ne",
+        "prob": 0.005224147345870733
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.004610294010490179
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.004610294010490179
+      },
+      {
+        "token_id": 220,
+        "token_str": " ",
+        "prob": 0.004610294010490179
+      },
+      {
+        "token_id": 68,
+        "token_str": "e",
+        "prob": 0.004330970346927643
+      }
+    ]
+  },
+  {
+    "latent_idx": 8,
+    "position": 329,
+    "block_idx": 0,
+    "step_in_block": 8,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.2065580040216446
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.16086752712726593
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.04906182736158371
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.029757503420114517
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.026260901242494583
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.023175165057182312
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.02045201137661934
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.016955314204096794
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.012404772453010082
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.010947173461318016
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.01028391718864441
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.008009122684597969
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.007068025879561901
+      },
+      {
+        "token_id": 220,
+        "token_str": " ",
+        "prob": 0.006639796309173107
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.006639796309173107
+      },
+      {
+        "token_id": 44707,
+        "token_str": "nor",
+        "prob": 0.006237511057406664
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.0045634605921804905
+      },
+      {
+        "token_id": 67,
+        "token_str": "d",
+        "prob": 0.004286974668502808
+      },
+      {
+        "token_id": 811,
+        "token_str": "ne",
+        "prob": 0.004286974668502808
+      },
+      {
+        "token_id": 64,
+        "token_str": "a",
+        "prob": 0.004027239978313446
+      }
+    ]
+  },
+  {
+    "latent_idx": 9,
+    "position": 330,
+    "block_idx": 0,
+    "step_in_block": 9,
+    "topk": [
+      {
+        "token_id": 3748,
+        "token_str": "rel",
+        "prob": 0.22487221658229828
+      },
+      {
+        "token_id": 102641,
+        "token_str": "奈",
+        "prob": 0.15455226600170135
+      },
+      {
+        "token_id": 77,
+        "token_str": "n",
+        "prob": 0.03448527306318283
+      },
+      {
+        "token_id": 16,
+        "token_str": "1",
+        "prob": 0.03043314442038536
+      },
+      {
+        "token_id": 256,
+        "token_str": "  ",
+        "prob": 0.025229962542653084
+      },
+      {
+        "token_id": 519,
+        "token_str": "ase",
+        "prob": 0.02370135672390461
+      },
+      {
+        "token_id": 83,
+        "token_str": "t",
+        "prob": 0.02370135672390461
+      },
+      {
+        "token_id": 45423,
+        "token_str": "nas",
+        "prob": 0.015302746556699276
+      },
+      {
+        "token_id": 49051,
+        "token_str": "REL",
+        "prob": 0.014375599101185799
+      },
+      {
+        "token_id": 98,
+        "token_str": "�",
+        "prob": 0.013504626229405403
+      },
+      {
+        "token_id": 13788,
+        "token_str": "express",
+        "prob": 0.009281584993004799
+      },
+      {
+        "token_id": 8674,
+        "token_str": " relative",
+        "prob": 0.008190969936549664
+      },
+      {
+        "token_id": 220,
+        "token_str": " ",
+        "prob": 0.008190969936549664
+      },
+      {
+        "token_id": 6740,
+        "token_str": "Rel",
+        "prob": 0.008190969936549664
+      },
+      {
+        "token_id": 3633,
+        "token_str": " connection",
+        "prob": 0.007694703992456198
+      },
+      {
+        "token_id": 44707,
+        "token_str": "nor",
+        "prob": 0.00562956603243947
+      },
+      {
+        "token_id": 120314,
+        "token_str": "荼",
+        "prob": 0.004384310450404882
+      },
+      {
+        "token_id": 101162,
+        "token_str": "相对",
+        "prob": 0.004118678625673056
+      },
+      {
+        "token_id": 64,
+        "token_str": "a",
+        "prob": 0.0038691400550305843
+      },
+      {
+        "token_id": 45,
+        "token_str": "N",
+        "prob": 0.0038691400550305843
+      }
+    ]
+  }
+]
