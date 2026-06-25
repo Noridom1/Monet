@@ -1,0 +1,96 @@
+{
+  "metadata": {
+    "dataset": "MMBench_DEV_EN",
+    "model_path": "/raid/ltnghia02/phuc_huy_hai/TTS/Monet/models/Monet-7B",
+    "num_samples": 9,
+    "indices": [
+      388,
+      1454,
+      1959,
+      1897,
+      241,
+      656,
+      337,
+      1209,
+      1714
+    ],
+    "num_correct": 4,
+    "num_boxed": 7,
+    "accuracy": 0.4444444444444444,
+    "correctness": "4/9"
+  },
+  "results": [
+    {
+      "id": "correct_0",
+      "index": 388,
+      "model_output": "The passage states, \"When they are scared, hedgehogs roll up into a ball.\" This directly answers the question about what hedgehogs do when they are scared. The image also shows a hedgehog in a ball shape, confirming the behavior. The correct answer is \\boxed{B. They curl up into a ball.}",
+      "gold": "B",
+      "extracted": "B. They curl up into a ball.",
+      "correct": false
+    },
+    {
+      "id": "correct_1",
+      "index": 1454,
+      "model_output": "The image shows the  Eiffel Tower, which is located in Paris, France. The  Eiffel Tower is an iron tower built on the Champ de Mars in Paris, France, and is one of the most recognizable landmarks in the world.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most-visited paid monument in the world, with 7 million visitors annually.  The  Eiffel Tower is also the most",
+      "gold": "B",
+      "extracted": null,
+      "correct": false
+    },
+    {
+      "id": "correct_2",
+      "index": 1959,
+      "model_output": "The image shows 2 birds perched on the back of a 1 buffalo. The birds are  likely to be  White Egrets, which are known to form a beneficial relationship with buffalo by feeding on the buffalo's skin parasites and dead skin. This type of interaction is known as a  commensalistic relationship, where one species benefits and the other is neither helped nor harmed. However, the question asks for the closest match from the given options, which are:\n\nA. Predatory relationships\nB. Competitive relationships\nC. Parasitic relationships\nD. Symbiotic relationship\n\nThe closest match from the given options is \\boxed{D. Symbiotic relationship}.",
+      "gold": "D",
+      "extracted": "D. Symbiotic relationship",
+      "correct": false
+    },
+    {
+      "id": "correct_3",
+      "index": 1897,
+      "model_output": "The image depicts  a man  walking down the street,  carrying  a  suitcase and  a  mask.  This scene is most consistent with option B, where  a man is  walking  the street  with  a  mask and  a  satchel,  indicating a sense of movement or travel.  The other options describe different activities and settings, which do not match the visual information in the image.  Therefore, the final answer is \\boxed{B}.",
+      "gold": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "id": "incorrect_0",
+      "index": 241,
+      "model_output": "The problem asks to identify the question that Madelyn and Tucker's experiment can best answer. The passage states that Madelyn alternated between riding with and without a thin layer of wax on the snowboard. Tucker timed each ride, and they calculated the average time for both conditions. The goal was to compare the average time it took to slide down the hill with and without the wax. Therefore, the correct answer is \\boxed{B}.",
+      "gold": "B",
+      "extracted": "B",
+      "correct": true
+    },
+    {
+      "id": "incorrect_1",
+      "index": 656,
+      "model_output": "To determine the man's direction, I will analyze the provided image to identify the man wearing the hat and his gaze.\n<abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad><abs_vis_token_pad></abs_vis_token>The man is  positioned  behind the young boy, and his head is  turned to look over his shoulder, indicating he is  facing the camera.\nTHOUGHT N: The man is  facing the camera, as his head is  turned to look over his shoulder.Therefore, the final answer is \\boxed{C. facing the camera}.",
+      "gold": "A",
+      "extracted": "C. facing the camera",
+      "correct": false
+    },
+    {
+      "id": "incorrect_2",
+      "index": 337,
+      "model_output": "First, I will analyze the provided image to understand the items that Chloe and Justin each want. The table shows the items Chloe wants and the items Justin wants. I will then compare the items to determine what they can trade to get what they want.\nThe table shows that:\n- Chloe wants a hot dog, oranges, broccoli, and water.\n- Justin wants a sandwich, tomatoes, almonds, and water.\nTo get what they want, Chloe and Justin can trade their items. I will now examine the options to identify the correct trade.\n- Option A: Justin can trade his broccoli for Chloe's oranges. This is not a beneficial trade for either party since both items are not what they want.\n- Option B: Chloe can trade her tomatoes for Justin's carrots. This is not a beneficial trade since neither party wants carrots.\n- Option C: Chloe can trade her tomatoes for Justin's broccoli. This is a beneficial trade since both parties can get what they want.\n- Option D: Justin can trade his almonds for Chloe's tomatoes. This is not a beneficial trade since both items are not what they want.\nThe best option is for Chloe to trade her tomatoes for Justin's broccoli, as both items are what they want. The final answer is \\boxed{C}.",
+      "gold": "C",
+      "extracted": "C",
+      "correct": true
+    },
+    {
+      "id": "incorrect_3",
+      "index": 1209,
+      "model_output": "First, I will examine the image to understand the current state of the car and its surroundings. The image shows  a  car  positioned  near  a  large  structure, which appears to be a hangar or barn, and there are  no visible signs of motion or impending crash.\nTHOUGHT N: The car is currently stationary and there are no visible signs of motion or impending crash. The hangar is a large structure, but it is not clear if the car is close enough to crash into it. The car is also not in a position that suggests it will fly or drive backwards. Therefore, the most likely outcome is that the car will remain stationary.\nANSWER: The most likely outcome is that the car will remain stationary. The final answer is \\boxed{A}.",
+      "gold": "A",
+      "extracted": "A",
+      "correct": true
+    },
+    {
+      "id": "incorrect_4",
+      "index": 1714,
+      "model_output": "The image shows  a  cooking pot, which is typically used for  cooking and steaming food. The presence of a digital display and buttons suggests it is an electric model, likely designed for various cooking functions. Given the options, the most appropriate function is  \"steam.\"",
+      "gold": "B",
+      "extracted": null,
+      "correct": false
+    }
+  ]
+}
