@@ -9,11 +9,13 @@ from pathlib import Path
 
 from inspection.donor_recipient.common import (
     CONDITIONS,
+    SCORING_PROTOCOL,
     atomic_json_dump,
     load_manifest,
     parse_seeds,
     percentile,
     result_path,
+    score_response,
 )
 
 
@@ -148,6 +150,7 @@ def main() -> None:
     records: dict[tuple[str, int], dict[str, dict]] = {}
     missing = []
     validation_failures = []
+    rescored_results = 0
     for seed in seeds:
         for condition in CONDITIONS:
             bucket = records.setdefault((condition, seed), {})
@@ -158,6 +161,17 @@ def main() -> None:
                     continue
                 with open(path, encoding="utf-8") as handle:
                     result = json.load(handle)
+                parsed, correct = score_response(result.get("response"), sample["gold"])
+                if (
+                    result.get("parsed") != parsed
+                    or result.get("correct") != correct
+                    or result.get("scoring_protocol") != SCORING_PROTOCOL
+                ):
+                    result["parsed"] = parsed
+                    result["correct"] = correct
+                    result["scoring_protocol"] = SCORING_PROTOCOL
+                    atomic_json_dump(result, path)
+                    rescored_results += 1
                 bucket[sample["id"]] = result
                 if condition == "wrong_sample" and result.get("latent_source_id") == sample["id"]:
                     validation_failures.append(f"{path}: wrong-sample self donation")
@@ -180,6 +194,8 @@ def main() -> None:
             "seeds": seeds,
             "bootstrap_samples": args.bootstrap_samples,
             "paper_vanilla_reference_accuracy": 0.6867,
+            "scoring_protocol": SCORING_PROTOCOL,
+            "rescored_results": rescored_results,
         },
         "conditions": rows,
         "missing_results": missing,
@@ -196,4 +212,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

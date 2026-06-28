@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -23,6 +24,7 @@ CONDITIONS = (
     "wrong_sample",
 )
 TASK_INSTRUCTION = "\nAnswer with the option's letter from the given choices directly."
+SCORING_PROTOCOL = "mmvp_robust_option_v2"
 
 
 def build_question(question: str, options: str) -> str:
@@ -41,16 +43,21 @@ def normalize_label(label: object) -> str:
 
 
 def parse_option(response: str | None) -> str | None:
-    """Apply the first-character scoring rule from the paper's LVR code."""
+    """Extract an MMVP option while tolerating reasoning and Qwen control tokens."""
     if not response:
         return None
-    answer = response.split("<answer>")[-1].split("</answer")[0].strip()
-    if " " in answer:
-        answer = answer.split(" ")[0]
-    if not answer:
-        return None
-    option = answer[0].upper()
-    return option if option in {"A", "B"} else None
+
+    answer_tags = re.findall(r"<answer>\s*([AB])\s*(?:</answer>)?", response, flags=re.IGNORECASE)
+    if answer_tags:
+        return answer_tags[-1].upper()
+
+    boxed = re.findall(r"\\boxed\s*\{\s*([AB])\s*\}", response, flags=re.IGNORECASE)
+    if boxed:
+        return boxed[-1].upper()
+
+    cleaned = re.sub(r"<\|[^|>]+\|>", " ", response)
+    standalone = re.findall(r"(?<![A-Za-z0-9])([AB])(?![A-Za-z0-9])", cleaned, flags=re.IGNORECASE)
+    return standalone[-1].upper() if standalone else None
 
 
 def score_response(response: str | None, gold: object) -> tuple[str | None, bool]:
@@ -119,6 +126,21 @@ def norm_matched_random(latents: torch.Tensor, seed: int) -> torch.Tensor:
     target_norms = torch.linalg.vector_norm(source, dim=-1, keepdim=True)
     random_norms = torch.linalg.vector_norm(random, dim=-1, keepdim=True).clamp_min(1e-12)
     return (random * target_norms / random_norms).to(latents.dtype)
+
+
+def qwen_decode_position_ids(cache_position: int, rope_delta: int, device: str) -> torch.Tensor:
+    """Build Qwen2.5-VL's [3,B,1] mRoPE positions without an expanded writable view.
+
+    Qwen uses the same scalar position for all three mRoPE axes after the multimodal
+    prefill. ``rope_delta`` is converted from the batch-size-one prefill output once,
+    before the decode loop, to avoid a device synchronization on every token.
+    """
+    return torch.full(
+        (3, 1, 1),
+        cache_position + rope_delta,
+        dtype=torch.long,
+        device=device,
+    )
 
 
 def cyclic_wrong_sample_ids(sample_ids: Sequence[str], seed: int) -> dict[str, str]:
@@ -195,4 +217,3 @@ def percentile(values: Iterable[float], quantile: float) -> float:
     upper = min(lower + 1, len(ordered) - 1)
     fraction = position - lower
     return ordered[lower] * (1 - fraction) + ordered[upper] * fraction
-

@@ -19,6 +19,7 @@ from inspection.donor_recipient.common import (
     non_identity_permutation,
     norm_matched_random,
     parse_option,
+    qwen_decode_position_ids,
     solid_gray_image,
 )
 from inspection.donor_recipient.prepare_mmvp import prepare_from_source
@@ -60,7 +61,13 @@ class InterventionTest(unittest.TestCase):
         self.assertIn("B. right", prompt)
         self.assertEqual(parse_option("<answer>B</answer>"), "B")
         self.assertEqual(parse_option("A"), "A")
-        self.assertIsNone(parse_option("The answer is A"))
+        self.assertEqual(parse_option("The answer is A"), "A")
+        self.assertEqual(
+            parse_option("\n<|im_start|> reasoning. Therefore, the answer is:\n\nB<|im_end|>"),
+            "B",
+        )
+        self.assertEqual(parse_option("final: \\boxed{A}"), "A")
+        self.assertIsNone(parse_option("<|im_end|>"))
 
     def test_artifact_validation(self):
         artifact = {
@@ -72,6 +79,12 @@ class InterventionTest(unittest.TestCase):
         self.assertIsNone(donor_artifact_error(artifact, "s1", 10))
         artifact["latents"][0, 0] = float("nan")
         self.assertIn("non-finite", donor_artifact_error(artifact, "s1", 10))
+
+    def test_qwen_decode_positions_are_materialized(self):
+        position_ids = qwen_decode_position_ids(100, -7, "cpu")
+        self.assertEqual(position_ids.shape, (3, 1, 1))
+        self.assertEqual(position_ids[:, 0, 0].tolist(), [93, 93, 93])
+        self.assertTrue(position_ids.is_contiguous())
 
 
 class DatasetTest(unittest.TestCase):
@@ -126,4 +139,3 @@ class AnalysisTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -14,6 +14,7 @@ from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 from inspection.donor_recipient import PROTOCOL_VERSION
 from inspection.donor_recipient.common import (
     CONDITIONS,
+    SCORING_PROTOCOL,
     atomic_json_dump,
     cyclic_wrong_sample_ids,
     donor_artifact_error,
@@ -22,6 +23,7 @@ from inspection.donor_recipient.common import (
     non_identity_permutation,
     norm_matched_random,
     parse_seeds,
+    qwen_decode_position_ids,
     resolve_image,
     result_path,
     score_response,
@@ -66,6 +68,11 @@ def generate_with_intervention(
     )
     past = output.past_key_values
     logits = output.logits[:, -1, :]
+    rope_deltas = output.rope_deltas
+    if rope_deltas is None or rope_deltas.numel() != 1:
+        shape = None if rope_deltas is None else tuple(rope_deltas.shape)
+        raise RuntimeError(f"expected one Qwen RoPE delta after prefill, got {shape}")
+    rope_delta = int(rope_deltas.reshape(-1)[0].item())
     prompt_len = int(inputs["input_ids"].shape[1])
     latent_count = 0 if latents is None else int(latents.shape[0])
     model_dtype = model.get_input_embeddings().weight.dtype
@@ -78,6 +85,7 @@ def generate_with_intervention(
                 past_key_values=past,
                 use_cache=True,
                 cache_position=torch.tensor([prompt_len + index], device=device),
+                position_ids=qwen_decode_position_ids(prompt_len + index, rope_delta, device),
                 return_dict=True,
                 logits_to_keep=1,
             )
@@ -98,6 +106,9 @@ def generate_with_intervention(
             past_key_values=past,
             use_cache=True,
             cache_position=torch.tensor([prompt_len + latent_count + index], device=device),
+            position_ids=qwen_decode_position_ids(
+                prompt_len + latent_count + index, rope_delta, device
+            ),
             return_dict=True,
             logits_to_keep=1,
         )
@@ -301,6 +312,7 @@ def main() -> None:
             "parsed": parsed,
             "gold": sample["gold"],
             "correct": correct,
+            "scoring_protocol": SCORING_PROTOCOL,
             "elapsed_seconds": elapsed,
             "peak_memory_bytes": (
                 int(torch.cuda.max_memory_allocated()) if args.device.startswith("cuda") else None

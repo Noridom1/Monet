@@ -82,10 +82,13 @@ outputs/<run>/
   report.md
 ```
 
-The primary metric is per-question A/B accuracy, matching the LVR evaluation code. The report
-also includes MMVP pair accuracy, paired changes from vanilla, wrong-to-right/right-to-wrong
-counts, and paired-bootstrap confidence intervals. The paper's 68.67% vanilla result is
-recorded as a reference, not enforced as a pass criterion.
+The primary metric is per-question A/B accuracy. Scoring prefers `<answer>` and `\\boxed{}`
+answers, then uses the last standalone A/B after removing Qwen control tokens. This handles
+recipient reasoning introduced by latent injection while applying one parser to every
+condition. Analysis refreshes stale derived `parsed`/`correct` fields without rerunning GPU
+inference. The report also includes MMVP pair accuracy, paired changes from vanilla,
+wrong-to-right/right-to-wrong counts, and paired-bootstrap confidence intervals. The paper's
+68.67% vanilla result is recorded as a reference, not enforced as a pass criterion.
 
 ## Verification
 
@@ -101,4 +104,3 @@ python -m inspection.donor_recipient.analyze_results --help
 
 Peak allocated CUDA memory is recorded in every donor and recipient artifact. The 24 GB RTX
 4090 target requires sequential stages; do not run donor and recipient processes concurrently.
-
