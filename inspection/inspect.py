@@ -190,8 +190,16 @@ def run_for_trace(trace_path, model, processor, k=20, image_path=None, device="c
     print(f"[Phase B] seq_len={trace['input_ids'].shape[0]} n_latent={n_latent} "
           f"blocks={len(latent_blocks)} n_image={len(image_positions)}")
     if n_latent == 0:
-        print("[Phase B] No latent tokens — nothing to inspect.")
-        return None
+        _write_no_latent_report(out_dir, trace)
+        print("[Phase B] No latent tokens — wrote generation/sampling report; replay skipped.")
+        return {
+            "id": meta.get("sample_id", os.path.basename(out_dir)),
+            "out_dir": out_dir, "bucket": meta.get("bucket"), "index": meta.get("index"),
+            "gold": meta.get("gold"), "pred_letter": meta.get("pred_letter"),
+            "hit": meta.get("hit"), "category": meta.get("category"),
+            "n_latent": 0, "gate_ok": None, "min_cosine": None, "pr": None,
+            "latent_img_mass": None,
+        }
 
     tokenizer = processor.tokenizer
 
@@ -335,6 +343,10 @@ def _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
     L.append(f"- latent tokens: **{meta.get('num_latent', len(final_records))}** "
              f"in **{meta.get('num_latent_blocks', '?')}** block(s)")
     L.append(f"- LATENT_SIZE: **{meta.get('latent_size', '?')}**")
+    if meta.get("sampling") is not None:
+        L.append(f"- sampling: `{json.dumps(meta['sampling'], sort_keys=True)}`")
+    L.append(f"- latent-start pool/sample count: **{meta.get('latent_start_pool_count', '?')}**/"
+             f"**{meta.get('latent_start_sampled_count', '?')}**")
     L.append(f"- replay==generation gate: min_cos=`{gate['min_cosine']:.5f}` "
              f"rel_l2=`{gate['max_rel_l2']:.4f}` -> "
              f"**{'PASS' if gate['ok'] else 'CHECK — replay diverged'}**\n")
@@ -361,6 +373,34 @@ def _write_markdown(out_dir, trace, final_records, by_layer_ids, by_layer_probs,
         f.write("\n".join(L) + "\n")
 
 
+def _write_no_latent_report(out_dir, trace):
+    """Write a useful Phase B artifact even when latent reasoning never activates."""
+    meta = trace.get("meta", {})
+    candidates = trace.get("latent_start_candidates", [])
+    L = ["# Monet latent inspection report\n", "- latent reasoning: **NOT ACTIVATED**"]
+    if meta.get("sample_id") is not None:
+        L.append(f"- sample **{meta['sample_id']}** (dataset index `{meta.get('index', '?')}`)")
+    if meta.get("sampling") is not None:
+        L.append(f"- sampling: `{json.dumps(meta['sampling'], sort_keys=True)}`")
+    L.append(f"- latent start in pool **{meta.get('latent_start_pool_count', len(candidates))}** "
+             f"time(s), sampled **{meta.get('latent_start_sampled_count', 0)}** time(s)\n")
+    L.append("## Generated text\n")
+    L.append("```\n" + trace.get("generated_text", "").strip() + "\n```\n")
+    if candidates:
+        L.extend([
+            "## Latent-start sampling opportunities\n",
+            "| step | predicted position | rank | raw probability | sampling probability | sampled |",
+            "|---|---|---|---|---|---|",
+        ])
+        for event in candidates:
+            L.append(f"| {event['generated_step']} | {event['sequence_position']} "
+                     f"| {event['rank']} | {event['raw_probability']:.6g} "
+                     f"| {event['sampling_probability']:.6g} "
+                     f"| {'yes' if event['sampled'] else 'no'} |")
+    with open(os.path.join(out_dir, "report.md"), "w") as f:
+        f.write("\n".join(L) + "\n")
+
+
 def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_positions,
                   tokenizer, redundancy=None, nearest=None):
     meta = trace.get("meta", {})
@@ -381,6 +421,13 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
     L.append(f"- sequence length **{trace['input_ids'].shape[0]}**, "
              f"latents **{n_lat}** in **{meta.get('num_latent_blocks','?')}** "
              f"block(s), LATENT_SIZE **{meta.get('latent_size','?')}**")
+    if meta.get("sampling") is not None:
+        L.append(f"- sampling: `{json.dumps(meta['sampling'], sort_keys=True)}`")
+    candidates = trace.get("latent_start_candidates", [])
+    pool_count = meta.get("latent_start_pool_count", len(candidates) if candidates else None)
+    sampled_count = meta.get("latent_start_sampled_count")
+    L.append(f"- latent start in pool **{pool_count if pool_count is not None else '?'}** time(s), "
+             f"sampled **{sampled_count if sampled_count is not None else '?'}** time(s)")
     L.append(f"- replay==generation gate: "
              f"**{'PASS' if gate['ok'] else 'CHECK'}** "
              f"(min_cos `{gate['min_cosine']:.5f}`, rel_l2 `{gate['max_rel_l2']:.4f}`)\n")
@@ -404,6 +451,16 @@ def _write_report(out_dir, trace, final_records, gate, attn_summary, latent_posi
 
     L.append("## Generated text\n")
     L.append("```\n" + trace["generated_text"].strip() + "\n```\n")
+    if candidates:
+        L.append("## Latent-start sampling opportunities\n")
+        L.append("| step | predicted position | rank | raw probability | sampling probability | sampled |")
+        L.append("|---|---|---|---|---|---|")
+        for event in candidates:
+            L.append(f"| {event['generated_step']} | {event['sequence_position']} "
+                     f"| {event['rank']} | {event['raw_probability']:.6g} "
+                     f"| {event['sampling_probability']:.6g} "
+                     f"| {'yes' if event['sampled'] else 'no'} |")
+        L.append("")
     L.append("## What each latent represents (final logit lens, top-5)\n")
     L.append("| latent | top tokens |")
     L.append("|---|---|")
@@ -518,9 +575,11 @@ def _write_index(out_dir, summaries):
         verdict = ("✓" if (gold is not None and pred == gold)
                    else "✗" if pred is not None else "?")
         mass = "—" if s.get("latent_img_mass") is None else f"{s['latent_img_mass']:.3f}"
+        gate = "SKIP" if s.get("gate_ok") is None else ("PASS" if s["gate_ok"] else "CHECK")
+        pr = "—" if s.get("pr") is None else f"{s['pr']:.2f}"
         L.append(f"| [{s['id']}]({s['id']}/report.md) | {s.get('bucket','?')} "
                  f"| {s.get('index','?')} | {gold}→{pred} | {verdict} "
-                 f"| {'PASS' if s.get('gate_ok') else 'CHECK'} | {s.get('pr', 0):.2f} | {mass} |")
+                 f"| {gate} | {pr} | {mass} |")
     with open(os.path.join(out_dir, "index.md"), "w") as f:
         f.write("\n".join(L) + "\n")
 

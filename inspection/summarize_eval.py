@@ -82,6 +82,8 @@ def summarize(manifest_path, out_dir, model_path=None):
     samples = manifest["samples"]
 
     results, indices, num_correct, num_boxed = [], [], 0, 0
+    num_latent_activated = 0
+    pool_counts, sampled_counts, sampling_configs = [], [], []
     for sample in samples:
         sid = sample["id"]
         gold = sample.get("gold")
@@ -90,9 +92,37 @@ def summarize(manifest_path, out_dir, model_path=None):
 
         trace_path = os.path.join(out_dir, sid, "trace.pt")
         model_output = None
+        sampling = None
+        latent_activated = False
+        num_latent_blocks = None
+        num_latent_tokens = None
+        latent_start_pool_count = None
+        latent_start_sampled_count = None
         if os.path.exists(trace_path):
             trace = torch.load(trace_path, map_location="cpu", weights_only=False)
             model_output = trace.get("generated_text")
+            meta = trace.get("meta", {})
+            sampling = meta.get("sampling")
+            num_latent_blocks = meta.get("num_latent_blocks")
+            if num_latent_blocks is None and trace.get("latent_blocks") is not None:
+                num_latent_blocks = len(trace["latent_blocks"])
+            num_latent_tokens = meta.get("num_latent")
+            if num_latent_tokens is None and trace.get("latent_positions") is not None:
+                num_latent_tokens = len(trace["latent_positions"])
+            latent_activated = bool(meta.get(
+                "latent_activated",
+                (num_latent_blocks or 0) > 0 or (num_latent_tokens or 0) > 0,
+            ))
+            latent_start_pool_count = meta.get("latent_start_pool_count")
+            if latent_start_pool_count is None and "latent_start_candidates" in trace:
+                latent_start_pool_count = len(trace["latent_start_candidates"])
+            latent_start_sampled_count = meta.get("latent_start_sampled_count")
+            if sampling is not None:
+                sampling_configs.append(sampling)
+            if latent_start_pool_count is not None:
+                pool_counts.append(latent_start_pool_count)
+            if latent_start_sampled_count is not None:
+                sampled_counts.append(latent_start_sampled_count)
         else:
             print(f"[summarize] WARNING: trace missing for {sid} ({trace_path}); output=None.")
 
@@ -100,6 +130,7 @@ def summarize(manifest_path, out_dir, model_path=None):
         correct = score(extracted, gold)
         num_boxed += extracted is not None
         num_correct += correct
+        num_latent_activated += latent_activated
         results.append({
             "id": sid,
             "index": index,
@@ -107,9 +138,18 @@ def summarize(manifest_path, out_dir, model_path=None):
             "gold": gold,
             "extracted": extracted,
             "correct": correct,
+            "sampling": sampling,
+            "latent_activated": latent_activated,
+            "num_latent_blocks": num_latent_blocks,
+            "num_latent_tokens": num_latent_tokens,
+            "latent_start_pool_count": latent_start_pool_count,
+            "latent_start_sampled_count": latent_start_sampled_count,
         })
 
     n = len(results)
+    common_sampling = None
+    if sampling_configs and all(config == sampling_configs[0] for config in sampling_configs):
+        common_sampling = sampling_configs[0]
     summary = {
         "metadata": {
             "dataset": manifest.get("dataset"),
@@ -120,6 +160,11 @@ def summarize(manifest_path, out_dir, model_path=None):
             "num_boxed": num_boxed,
             "accuracy": (num_correct / n) if n else 0.0,
             "correctness": f"{num_correct}/{n}",
+            "sampling": common_sampling,
+            "num_latent_activated": num_latent_activated,
+            "latent_activation_rate": (num_latent_activated / n) if n else 0.0,
+            "total_latent_start_pool_count": sum(pool_counts) if pool_counts else None,
+            "total_latent_start_sampled_count": sum(sampled_counts) if sampled_counts else None,
         },
         "results": results,
     }

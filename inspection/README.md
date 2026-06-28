@@ -183,6 +183,30 @@ python -m inspection.inspect --trace inspection/outputs/demo/trace.pt --image im
 python -m inspection.inspect --manifest data/inspect_samples/samples.json --out_dir inspection/outputs/eval_samples
 ```
 
+### Sampling configurations
+
+Phase A is greedy by default (`temperature=0.0`). Both the single-sample and batch
+launchers accept `TEMPERATURE`, `TOP_K`, `TOP_P`, `REPETITION_PENALTY`, `SEED`, and
+`MAX_NEW_TOKENS`. For example:
+
+```bash
+TEMPERATURE=0.7 TOP_K=50 TOP_P=0.8 REPETITION_PENALTY=1.0 SEED=42 \
+MAX_NEW_TOKENS=2048 OUT_DIR=inspection/outputs/eval-t07-k50-p08-s42 \
+bash inspection/run_batch.sh
+```
+
+Use a distinct `TRACE` (single sample) or `OUT_DIR` (batch) for each configuration.
+Every trace stores the effective values in `meta.sampling`.
+
+`latent_start_candidates` contains each decoding step where `<abs_vis_token>` survives
+top-k and top-p filtering. Its `rank` is one-based after repetition penalty and before
+truncation. `raw_probability` is the unmodified model softmax probability, while
+`sampling_probability` is the final renormalized probability after all sampling controls.
+
+For batch runs, `eval_summary.json` reports `latent_activation_rate`: the fraction of all
+manifest samples containing at least one latent block. Missing traces remain in the
+denominator, consistent with answer accuracy.
+
 ## Files
 
 - `generate_latents.py` — Phase A capture (single `--out` or batch `--manifest`/`--out_dir`).
