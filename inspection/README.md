@@ -110,6 +110,21 @@ MANIFEST=data/VisualPuzzles/inspect_manifest.json OUT_DIR=inspection/outputs/Vis
 MANIFEST=data/MathVision/inspect_manifest.json   OUT_DIR=inspection/outputs/MathVision   bash inspection/run_batch.sh
 ```
 
+To run both prepared datasets with `temperature=0.1` while keeping every other sampling
+setting at its default, use separate output directories:
+
+```bash
+TEMPERATURE=0.1 \
+MANIFEST=data/VisualPuzzles/inspect_manifest.json \
+OUT_DIR=inspection/outputs/VisualPuzzles-t01 \
+bash inspection/run_batch.sh
+
+TEMPERATURE=0.1 \
+MANIFEST=data/MathVision/inspect_manifest.json \
+OUT_DIR=inspection/outputs/MathVision-t01 \
+bash inspection/run_batch.sh
+```
+
 You get the same artifacts as the eval-sample flow — per-sample `report.md` (header shows
 gold answer; the model's freshly-captured answer is embedded), `logit_lens.md`, `*.npz`,
 `heatmaps/`, `trace.pt`, and a top-level `index.md`. These datasets carry **no prior model
@@ -189,11 +204,40 @@ Phase A is greedy by default (`temperature=0.0`). Both the single-sample and bat
 launchers accept `TEMPERATURE`, `TOP_K`, `TOP_P`, `REPETITION_PENALTY`, `SEED`, and
 `MAX_NEW_TOKENS`. For example:
 
+Run the bundled demo end to end with `temperature=0.1` and all other sampling settings
+left at their defaults:
+
+```bash
+TRACE=inspection/outputs/demo-t01/trace.pt \
+TEMPERATURE=0.1 \
+bash inspection/run_phase_a.sh
+
+TRACE=inspection/outputs/demo-t01/trace.pt \
+bash inspection/run_phase_b.sh
+```
+
+The resulting trace and Phase B report are written under `inspection/outputs/demo-t01/`.
+
+For a batch run with explicit sampling controls:
+
 ```bash
 TEMPERATURE=0.7 TOP_K=50 TOP_P=0.8 REPETITION_PENALTY=1.0 SEED=42 \
 MAX_NEW_TOKENS=2048 OUT_DIR=inspection/outputs/eval-t07-k50-p08-s42 \
 bash inspection/run_batch.sh
 ```
+
+Sweep the full batch pipeline over the default temperatures `0.1`, `0.3`, `0.5`, and
+`0.7`:
+
+```bash
+MANIFEST=data/VisualPuzzles/inspect_manifest.json \
+OUT_ROOT=inspection/outputs/VisualPuzzles-temp-sweep \
+bash inspection/run_sweep_temp.sh
+```
+
+Override the list with a space-separated `TEMPERATURES` value, for example
+`TEMPERATURES="0.0 0.2 0.4"`. Each run is written under
+`<OUT_ROOT>/temperature-<value>/`.
 
 Use a distinct `TRACE` (single sample) or `OUT_DIR` (batch) for each configuration.
 Every trace stores the effective values in `meta.sampling`.
