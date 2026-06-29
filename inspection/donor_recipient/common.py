@@ -25,6 +25,7 @@ CONDITIONS = (
 )
 TASK_INSTRUCTION = "\nAnswer with the option's letter from the given choices directly."
 SCORING_PROTOCOL = "mmvp_robust_option_v2"
+HYBRID_SCORING_PROTOCOL = "mmvp_hybrid_option_v1"
 
 
 def build_question(question: str, options: str) -> str:
@@ -62,6 +63,25 @@ def parse_option(response: str | None) -> str | None:
 
 def score_response(response: str | None, gold: object) -> tuple[str | None, bool]:
     parsed = parse_option(response)
+    return parsed, parsed == normalize_label(gold)
+
+
+def response_digest(response: str | None) -> str:
+    return hashlib.sha256((response or "").encode("utf-8")).hexdigest()
+
+
+def stored_hybrid_score(result: dict, gold: object) -> tuple[str | None, bool] | None:
+    """Return a completed hybrid-parser score without invoking the remote parser."""
+    parsing = result.get("parsing")
+    parsed = result.get("parsed")
+    if (
+        result.get("scoring_protocol") != HYBRID_SCORING_PROTOCOL
+        or not isinstance(parsing, dict)
+        or parsing.get("method") not in {"deterministic", "llm_fallback"}
+        or parsing.get("response_sha256") != response_digest(result.get("response"))
+        or parsed not in {None, "A", "B"}
+    ):
+        return None
     return parsed, parsed == normalize_label(gold)
 
 

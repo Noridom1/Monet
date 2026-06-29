@@ -9,6 +9,7 @@ from pathlib import Path
 
 from inspection.donor_recipient.common import (
     CONDITIONS,
+    HYBRID_SCORING_PROTOCOL,
     SCORING_PROTOCOL,
     atomic_json_dump,
     load_manifest,
@@ -16,6 +17,7 @@ from inspection.donor_recipient.common import (
     percentile,
     result_path,
     score_response,
+    stored_hybrid_score,
 )
 
 
@@ -108,6 +110,11 @@ def _write_markdown(summary: dict, path: Path) -> None:
         f"- Expected samples per condition: **{summary['metadata']['expected_samples']}**",
         f"- Missing results: **{len(summary['missing_results'])}**",
         f"- Validation failures: **{len(summary['validation_failures'])}**",
+        "- Parser methods: **"
+        + ", ".join(
+            f"{method}={count}" for method, count in summary["metadata"]["parser_methods"].items()
+        )
+        + "**",
         "",
         "| condition | seed | accuracy | Δ vanilla (95% CI) | wrong→right | right→wrong | pair accuracy |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -151,6 +158,8 @@ def main() -> None:
     missing = []
     validation_failures = []
     rescored_results = 0
+    scoring_protocols = set()
+    parser_methods: dict[str, int] = {}
     for seed in seeds:
         for condition in CONDITIONS:
             bucket = records.setdefault((condition, seed), {})
@@ -161,17 +170,30 @@ def main() -> None:
                     continue
                 with open(path, encoding="utf-8") as handle:
                     result = json.load(handle)
-                parsed, correct = score_response(result.get("response"), sample["gold"])
+                hybrid_score = stored_hybrid_score(result, sample["gold"])
+                if hybrid_score is None:
+                    parsed, correct = score_response(result.get("response"), sample["gold"])
+                    scoring_protocol = SCORING_PROTOCOL
+                else:
+                    parsed, correct = hybrid_score
+                    scoring_protocol = HYBRID_SCORING_PROTOCOL
+                parser_method = (
+                    result.get("parsing", {}).get("method")
+                    if scoring_protocol == HYBRID_SCORING_PROTOCOL
+                    else "deterministic"
+                )
+                parser_methods[parser_method] = parser_methods.get(parser_method, 0) + 1
                 if (
                     result.get("parsed") != parsed
                     or result.get("correct") != correct
-                    or result.get("scoring_protocol") != SCORING_PROTOCOL
+                    or result.get("scoring_protocol") != scoring_protocol
                 ):
                     result["parsed"] = parsed
                     result["correct"] = correct
-                    result["scoring_protocol"] = SCORING_PROTOCOL
+                    result["scoring_protocol"] = scoring_protocol
                     atomic_json_dump(result, path)
                     rescored_results += 1
+                scoring_protocols.add(scoring_protocol)
                 bucket[sample["id"]] = result
                 if condition == "wrong_sample" and result.get("latent_source_id") == sample["id"]:
                     validation_failures.append(f"{path}: wrong-sample self donation")
@@ -194,7 +216,10 @@ def main() -> None:
             "seeds": seeds,
             "bootstrap_samples": args.bootstrap_samples,
             "paper_vanilla_reference_accuracy": 0.6867,
-            "scoring_protocol": SCORING_PROTOCOL,
+            "scoring_protocol": (
+                next(iter(scoring_protocols)) if len(scoring_protocols) == 1 else "mixed"
+            ),
+            "parser_methods": parser_methods,
             "rescored_results": rescored_results,
         },
         "conditions": rows,

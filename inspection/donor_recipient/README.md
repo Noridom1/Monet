@@ -71,6 +71,30 @@ python -m inspection.donor_recipient.analyze_results \
   --output_dir inspection/donor_recipient/outputs/mmvp_seed0
 ```
 
+## Optional LLM answer post-processing
+
+The post-processing stage keeps deterministic parsing as the first choice and sends only
+unresolved responses to an OpenAI-compatible endpoint. Requests contain multiple MMVP items
+and use a conservative 1,024-token prompt estimate. Completed batches are written immediately,
+so an interrupted run can be resumed. Put `AI_PLATFORM_API_KEY=...` in `.env`, then run:
+
+```bash
+python -m inspection.donor_recipient.postprocess_llm \
+  --manifest inspection/donor_recipient/data/mmvp/manifest.json \
+  --output_dir inspection/donor_recipient/outputs/mmvp_seed0
+
+python -m inspection.donor_recipient.analyze_results \
+  --manifest inspection/donor_recipient/data/mmvp/manifest.json \
+  --output_dir inspection/donor_recipient/outputs/mmvp_seed0
+```
+
+Use `--dry_run` to inspect the number of fallback answers and batches without reading the API
+key or modifying results. Each result records whether `deterministic` or `llm_fallback` parsing
+was used. The analyzer preserves completed hybrid scores instead of replacing them with the
+deterministic parser's result. If the ignored MMVP data directory is no longer present, rerun
+`python -m inspection.donor_recipient.prepare_mmvp` first to recreate the manifest containing
+the questions and options.
+
 ## Outputs
 
 ```text
@@ -82,13 +106,13 @@ outputs/<run>/
   report.md
 ```
 
-The primary metric is per-question A/B accuracy. Scoring prefers `<answer>` and `\\boxed{}`
-answers, then uses the last standalone A/B after removing Qwen control tokens. This handles
-recipient reasoning introduced by latent injection while applying one parser to every
-condition. Analysis refreshes stale derived `parsed`/`correct` fields without rerunning GPU
-inference. The report also includes MMVP pair accuracy, paired changes from vanilla,
-wrong-to-right/right-to-wrong counts, and paired-bootstrap confidence intervals. The paper's
-68.67% vanilla result is recorded as a reference, not enforced as a pass criterion.
+The primary metric is per-question A/B accuracy. Deterministic scoring prefers `<answer>` and
+`\\boxed{}` answers, then uses the last standalone A/B after removing Qwen control tokens. The
+optional post-processing stage applies that parser first and uses the LLM only as a fallback.
+Analysis refreshes stale derived `parsed`/`correct` fields without rerunning GPU inference and
+preserves valid hybrid results. The report also includes MMVP pair accuracy, paired changes
+from vanilla, wrong-to-right/right-to-wrong counts, and paired-bootstrap confidence intervals.
+The paper's 68.67% vanilla result is recorded as a reference, not enforced as a pass criterion.
 
 ## Verification
 

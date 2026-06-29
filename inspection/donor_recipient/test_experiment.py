@@ -13,6 +13,7 @@ from PIL import Image
 from inspection.donor_recipient import PROTOCOL_VERSION
 from inspection.donor_recipient.analyze_results import summarize_records
 from inspection.donor_recipient.common import (
+    HYBRID_SCORING_PROTOCOL,
     build_question,
     cyclic_wrong_sample_ids,
     donor_artifact_error,
@@ -20,7 +21,15 @@ from inspection.donor_recipient.common import (
     norm_matched_random,
     parse_option,
     qwen_decode_position_ids,
+    response_digest,
     solid_gray_image,
+    stored_hybrid_score,
+)
+from inspection.donor_recipient.postprocess_llm import (
+    estimate_request_tokens,
+    make_batches,
+    make_item,
+    parse_llm_response,
 )
 from inspection.donor_recipient.prepare_mmvp import prepare_from_source
 
@@ -85,6 +94,37 @@ class InterventionTest(unittest.TestCase):
         self.assertEqual(position_ids.shape, (3, 1, 1))
         self.assertEqual(position_ids[:, 0, 0].tolist(), [93, 93, 93])
         self.assertTrue(position_ids.is_contiguous())
+
+    def test_completed_hybrid_score_is_reused(self):
+        result = {
+            "parsed": "B",
+            "scoring_protocol": HYBRID_SCORING_PROTOCOL,
+            "response": "The intended answer is B.",
+            "parsing": {
+                "method": "llm_fallback",
+                "response_sha256": response_digest("The intended answer is B."),
+            },
+        }
+        self.assertEqual(stored_hybrid_score(result, "B"), ("B", True))
+
+
+class LLMPostprocessTest(unittest.TestCase):
+    def test_batches_respect_estimated_prompt_cap(self):
+        items = [
+            make_item(f"item-{index}", "Question? Options: A. yes B. no", "reason " * 100)
+            for index in range(5)
+        ]
+        batches = make_batches(items, max_prompt_tokens=300)
+        self.assertGreater(len(batches), 1)
+        self.assertTrue(all(estimate_request_tokens(batch) <= 300 for batch in batches))
+        self.assertEqual(
+            [item["id"] for batch in batches for item in batch],
+            [item["id"] for item in items],
+        )
+
+    def test_parse_llm_json_response(self):
+        content = '```json\n{"results":[{"id":"one","choice":"b"},{"id":"two","choice":null}]}\n```'
+        self.assertEqual(parse_llm_response(content, {"one", "two"}), {"one": "B", "two": None})
 
 
 class DatasetTest(unittest.TestCase):
