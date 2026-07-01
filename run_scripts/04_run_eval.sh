@@ -1,107 +1,97 @@
 #!/usr/bin/env bash
-# Evaluate Monet-7B on VLMEvalKit benchmarks — full dataset or a subset.
-#
-# Subset modes (set SUBSET):
-#   SUBSET=full           run the whole dataset (default)
-#   SUBSET=head           first k% / first N samples (deterministic)
-#   SUBSET=random         random k% / random N samples (seeded by SEED)
-# Size is given by exactly one of:
-#   FRAC=0.1              fraction, e.g. 10%
-#   N=200                 absolute count
-#
-# Each dataset's official TSV is restored to full before this run, then (for head/random)
-# re-subsetted, so runs are reproducible and never accumulate. Official dataset names are
-# used, so official evaluators/metrics apply.
+# Monet Table 3 evaluation. MODE=infer, score, all, or summarize.
 set -euo pipefail
 
 ENV_NAME="${ENV_NAME:-monet}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVAL_DIR="${EVAL_DIR:-$REPO_DIR/VLMEvalKit}"
-
 CONDA_BASE="${CONDA_BASE:-$HOME/miniconda3}"
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
-# --- model + Monet knobs ---------------------------------------------------
 MODEL_PATH="${MODEL_PATH:-$REPO_DIR/models/Monet-7B}"
-# Canonicalize to an absolute path: the script later cd's into $EVAL_DIR, after which
-# a relative MODEL_PATH would no longer resolve and VLMEvalKit would mistake it for a
-# Hugging Face repo id and try to download it.
 MODEL_PATH="$(realpath -m "$MODEL_PATH" 2>/dev/null || readlink -f "$MODEL_PATH")"
 export MODEL_PATH
-export LATENT_SIZE="${LATENT_SIZE:-10}"
-# System prompt + token budget (run_monet.py reads these; defaults match README).
 export MONET_MAX_NEW_TOKENS="${MONET_MAX_NEW_TOKENS:-2048}"
+export MONET_MAX_PIXELS="${MONET_MAX_PIXELS:-$((1280 * 28 * 28))}"
+export GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
 
-# --- datasets + subset selection -------------------------------------------
-# Space-separated official VLMEvalKit dataset names.
-DATASETS="${DATASETS:-MMBench_DEV_EN}"
-SUBSET="${SUBSET:-full}"            # full | head | random
-FRAC="${FRAC:-}"                   # e.g. 0.1
-N="${N:-}"                         # e.g. 200
+DATASETS="${DATASETS:-VStarBench HRBench4K HRBench8K MME-RealWorld-Lite}"
+LATENT_SIZES="${LATENT_SIZES:-${LATENT_SIZE:-10}}"
+MODE="${MODE:-all}"                    # infer | score | all | summarize
+SUBSET="${SUBSET:-full}"               # full | head | random (smoke tests only)
+FRAC="${FRAC:-}"
+N="${N:-}"
 SEED="${SEED:-0}"
+WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/table3}"
 
-# --- judge (README: replace exact match with an API judge) -----------------
-# Set JUDGE to an API model name (e.g. gpt-4o-mini, or a DeepSeek/Gemini-compatible
-# model served via JUDGE_BASE_URL + JUDGE_KEY). Leave empty to use VLMEvalKit defaults.
-JUDGE="${JUDGE:-}"
-JUDGE_BASE_URL="${JUDGE_BASE_URL:-}"
-JUDGE_KEY="${JUDGE_KEY:-}"
+JUDGE_MODEL="${JUDGE_MODEL:-google/gemma-4-31b-it}"
+JUDGE_BASE_URL="${JUDGE_BASE_URL:-https://maas-llm-aiplatform-hcm.api.vngcloud.vn/v1}"
+JUDGE_CONCURRENCY="${JUDGE_CONCURRENCY:-1}"
+export JUDGE_MODEL JUDGE_BASE_URL JUDGE_CONCURRENCY
+export JUDGE_RPM="${JUDGE_RPM:-6}"
+export JUDGE_HTTP_RETRIES="${JUDGE_HTTP_RETRIES:-6}"
 
-# --- output dir (kept distinct per subset so subset/full results don't collide) ---
-case "$SUBSET" in
-  full)   WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/full}";;
-  head)   WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/head_${FRAC:-$N}}";;
-  random) WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/random_${FRAC:-$N}_seed${SEED}}";;
-  *) echo "[run-eval] ERROR: SUBSET must be full|head|random (got '$SUBSET')" >&2; exit 1;;
-esac
-
-if [ ! -d "$MODEL_PATH" ]; then
-  echo "[run-eval] ERROR: MODEL_PATH '$MODEL_PATH' not found. Run 01_download_model.sh first." >&2
-  exit 1
+case "$MODE" in infer|score|all|summarize) ;; *) echo "ERROR: MODE must be infer|score|all|summarize" >&2; exit 2;; esac
+if [ ! -f "$EVAL_DIR/run_monet.py" ] && [ "$MODE" != summarize ]; then
+  echo "ERROR: VLMEvalKit is not set up. Run 03_setup_eval.sh first." >&2; exit 1
 fi
-if [ ! -f "$EVAL_DIR/run_monet.py" ]; then
-  echo "[run-eval] ERROR: VLMEvalKit not set up. Run 03_setup_eval.sh first." >&2
-  exit 1
+if [ ! -d "$MODEL_PATH" ] && { [ "$MODE" = infer ] || [ "$MODE" = all ]; }; then
+  echo "ERROR: MODEL_PATH '$MODEL_PATH' does not exist." >&2; exit 1
 fi
-if [ "$SUBSET" != "full" ]; then
-  if { [ -n "$FRAC" ] && [ -n "$N" ]; } || { [ -z "$FRAC" ] && [ -z "$N" ]; }; then
-    echo "[run-eval] ERROR: for SUBSET=$SUBSET set exactly one of FRAC or N." >&2; exit 1
-  fi
+if [ "$SUBSET" != full ] && { { [ -n "$FRAC" ] && [ -n "$N" ]; } || { [ -z "$FRAC" ] && [ -z "$N" ]; }; }; then
+  echo "ERROR: for a subset, set exactly one of FRAC or N." >&2; exit 2
+fi
+
+read -ra DATASET_ARRAY <<< "$DATASETS"
+read -ra LATENT_ARRAY <<< "$LATENT_SIZES"
+for size in "${LATENT_ARRAY[@]}"; do
+  [[ "$size" =~ ^[0-9]+$ ]] || { echo "ERROR: invalid latent size '$size'" >&2; exit 2; }
+done
+
+if [ "$MODE" = summarize ]; then
+  python "$REPO_DIR/run_scripts/summarize_table3.py" --work-dir "$WORK_DIR" \
+    --latent-sizes "${LATENT_ARRAY[@]}" --datasets "${DATASET_ARRAY[@]}"
+  exit 0
 fi
 
 cd "$EVAL_DIR"
-# Make sitecustomize.py importable from the very first interpreter byte (parent + workers).
-export PYTHONPATH="$EVAL_DIR:${PYTHONPATH:-}"
+export PYTHONPATH="$EVAL_DIR:$REPO_DIR/run_scripts:${PYTHONPATH:-}"
 
-echo "[run-eval] model=$MODEL_PATH  datasets='$DATASETS'  subset=$SUBSET  frac=${FRAC:-} n=${N:-} seed=$SEED"
-echo "[run-eval] work-dir=$WORK_DIR"
+if [ "$MODE" = score ] || [ "$MODE" = all ]; then
+  : "${AI_PLATFORM_API_KEY:?Set AI_PLATFORM_API_KEY for MODE=$MODE}"
+  python "$REPO_DIR/run_scripts/judge_preflight.py" --base-url "$JUDGE_BASE_URL" --model "$JUDGE_MODEL"
+fi
 
-# --- prepare each dataset's TSV (restore to full, then subset if requested) -
-for d in $DATASETS; do
-  python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$d" --mode restore
-  if [ "$SUBSET" != "full" ]; then
+# Download/restore canonical datasets once. Subsets are explicitly smoke-test artifacts.
+for dataset in "${DATASET_ARRAY[@]}"; do
+  python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$dataset" --mode restore
+  if [ "$SUBSET" != full ]; then
     SIZE_ARGS=(); [ -n "$FRAC" ] && SIZE_ARGS+=(--frac "$FRAC"); [ -n "$N" ] && SIZE_ARGS+=(--n "$N")
-    python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$d" --mode "$SUBSET" --seed "$SEED" "${SIZE_ARGS[@]}"
+    python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$dataset" --mode "$SUBSET" --seed "$SEED" "${SIZE_ARGS[@]}"
   fi
 done
 
-# --- run evaluation --------------------------------------------------------
-JUDGE_ARGS=()
-if [ -n "$JUDGE" ]; then
-  JUDGE_ARGS+=(--judge "$JUDGE")
-  [ -n "$JUDGE_BASE_URL" ] && JUDGE_ARGS+=(--judge-base-url "$JUDGE_BASE_URL")
-  [ -n "$JUDGE_KEY" ]      && JUDGE_ARGS+=(--judge-key "$JUDGE_KEY")
-else
-  echo "[run-eval] WARNING: no JUDGE set. README recommends an API judge for accurate scoring."
-fi
+for size in "${LATENT_ARRAY[@]}"; do
+  export LATENT_SIZE="$size"
+  RUN_DIR="$WORK_DIR/latent_$size"
+  mkdir -p "$RUN_DIR"
+  python "$REPO_DIR/run_scripts/record_eval_metadata.py" --output "$RUN_DIR/run_config.json" \
+    --eval-dir "$EVAL_DIR" --model-path "$MODEL_PATH" --latent-size "$size" --datasets "${DATASET_ARRAY[@]}"
 
-python run_monet.py \
-  --model Monet \
-  --data $DATASETS \
-  --work-dir "$WORK_DIR" \
-  --reuse \
-  "${JUDGE_ARGS[@]}"
+  if [ "$MODE" = infer ] || [ "$MODE" = all ]; then
+    echo "[eval] inference latent_size=$size datasets=$DATASETS"
+    python run_monet.py --model Monet --data "${DATASET_ARRAY[@]}" --work-dir "$RUN_DIR" --mode infer --reuse
+  fi
 
-echo
-echo "[run-eval] DONE. Results under: $WORK_DIR/Monet/"
+  if [ "$MODE" = score ] || [ "$MODE" = all ]; then
+    echo "[eval] scoring latent_size=$size judge=$JUDGE_MODEL rpm=$JUDGE_RPM concurrency=$JUDGE_CONCURRENCY"
+    MONET_RATE_LIMIT_JUDGE=1 JUDGE_STATS_FILE="$RUN_DIR/judge_http_stats.json" python run_monet.py \
+      --model Monet --data "${DATASET_ARRAY[@]}" --work-dir "$RUN_DIR" --mode eval --reuse \
+      --judge "$JUDGE_MODEL" --judge-base-url "$JUDGE_BASE_URL" \
+      --judge-api-nproc "$JUDGE_CONCURRENCY" --judge-args '{"temperature": 0}'
+  fi
+done
+
+python "$REPO_DIR/run_scripts/summarize_table3.py" --work-dir "$WORK_DIR" \
+  --latent-sizes "${LATENT_ARRAY[@]}" --datasets "${DATASET_ARRAY[@]}"

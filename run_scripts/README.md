@@ -11,9 +11,10 @@ bash run_scripts/02_run_inference.sh    # run the example (images/example_questi
 
 # --- evaluation (VLMEvalKit) ---
 bash run_scripts/03_setup_eval.sh                       # clone+install VLMEvalKit, wire in Monet (once)
-DATASETS="MMBench_DEV_EN" bash run_scripts/04_run_eval.sh                       # full eval
-DATASETS="MMBench_DEV_EN" SUBSET=head   FRAC=0.1 bash run_scripts/04_run_eval.sh   # first 10%
-DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh   # random 200
+LATENT_SIZES="10" MODE=all bash run_scripts/04_run_eval.sh
+LATENT_SIZES="8 10 12 16" MODE=infer bash run_scripts/04_run_eval.sh
+LATENT_SIZES="8 10 12 16" MODE=score bash run_scripts/04_run_eval.sh
+LATENT_SIZES="8 10 12 16" MODE=summarize bash run_scripts/04_run_eval.sh
 
 # --- dataset prep (HF -> data/<name>/{images,samples.json}) ---
 bash run_scripts/05_prepare_data.sh VisualPuzzles            # neulab/VisualPuzzles
@@ -74,16 +75,33 @@ bash run_scripts/05_prepare_data.sh VisualPuzzles --limit 20      # first 20 row
 `--limit N`. For gated datasets, run `hf auth login` first.
 
 ## Evaluation knobs (env vars for 04_run_eval.sh)
+
+The Table 3 workflow defaults to `VStarBench HRBench4K HRBench8K
+MME-RealWorld-Lite`. `LATENT_SIZES` accepts one or more space-separated sizes.
+`MODE` is `infer`, `score`, `all`, or `summarize`; inference artifacts are reused by
+later scoring runs. Scoring reads `AI_PLATFORM_API_KEY` and defaults to judge model
+`google/gemma-4-31b-it`, one worker, and six request starts per minute. Override with
+`JUDGE_MODEL`, `JUDGE_BASE_URL`, `JUDGE_CONCURRENCY`, and `JUDGE_RPM`.
+
+Reports are written under `eval_outputs/table3`: `table3_by_latent_size.csv`,
+`table3_best.csv`, `table3_summary.md`, and `latent_activation_details.csv`.
+Activation means the raw answer contains `<abs_vis_token>` (token id 151666).
+
 | Var | Default | Notes |
 |---|---|---|
-| `DATASETS` | `MMBench_DEV_EN` | space-separated official VLMEvalKit dataset names |
+| `DATASETS` | Table 3 datasets | official names listed above |
+| `LATENT_SIZES` | `10` | one or more sizes, e.g. `8 10 12 16` |
+| `MODE` | `all` | `infer`, `score`, `all`, or `summarize` |
 | `SUBSET` | `full` | `full` \| `head` (first k%/N) \| `random` (seeded) |
 | `FRAC` | — | fraction in (0,1], e.g. `0.1`. Set **one** of FRAC/N for subsets |
 | `N` | — | absolute sample count, e.g. `200` |
 | `SEED` | `0` | seed for `SUBSET=random` |
 | `JUDGE` | — | API judge model (e.g. `gpt-4o-mini`); README recommends one. With `JUDGE_BASE_URL`+`JUDGE_KEY` for DeepSeek/Gemini-compatible endpoints |
+| `JUDGE_MODEL` | `google/gemma-4-31b-it` | choice-extraction judge |
+| `JUDGE_RPM` | `6` | global judge request starts per minute |
+| `JUDGE_CONCURRENCY` | `1` | concurrent VLMEvalKit judge workers |
 | `MONET_MAX_NEW_TOKENS` | `2048` | generation budget per question |
-| `WORK_DIR` | `eval_outputs/<subset>` | output dir (auto-separated per subset) |
+| `WORK_DIR` | `eval_outputs/table3` | one `latent_<size>` directory per run |
 
 ## How the subset works (and its one caveat)
 VLMEvalKit has **no built-in subset flag**. Each dataset is a single self-contained TSV in
