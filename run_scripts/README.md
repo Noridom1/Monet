@@ -36,6 +36,22 @@ bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test   # 
 - **eval_subset.py** — helper used by 04 to build a reproducible row-subset of a dataset TSV.
 - **05_prepare_data.sh** / **prepare_dataset.py** — download any Hugging Face benchmark and
   normalize it to the common `data/<name>/` layout (see "Dataset preparation" below).
+- **06_prepare_sft_data.sh** / **validate_sft_dataset.py** — download the official
+  `Monet-SFT-125K` training data, verify all six subsets, and check image references.
+
+## SFT training data (06_prepare_sft_data.sh)
+
+```bash
+bash run_scripts/06_prepare_sft_data.sh
+```
+
+The default output is `data/Monet-SFT-125K`. To use another disk or an existing
+folder, set `DATASET_DIR`:
+
+```bash
+DATASET_DIR=/mnt/data/Monet-SFT-125K bash run_scripts/06_prepare_sft_data.sh
+DATASET_DIR=/mnt/data/Monet-SFT-125K bash script_examples/sft_stage1.sh
+```
 
 ## Dataset preparation (05_prepare_data.sh)
 Downloads a Hugging Face benchmark and normalizes it to one common, evaluation-agnostic

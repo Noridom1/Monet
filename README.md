@@ -107,6 +107,20 @@ pip install -r requirements.txt
 * [SFT data (Monet-SFT-125K)](https://huggingface.co/datasets/NOVAglow646/Monet-SFT-125K/tree/main)
 * [RL data (Thyme-RL)](https://huggingface.co/datasets/Kwai-Keye/Thyme-RL)
 
+Prepare the SFT dataset in the default local folder:
+
+```bash
+bash run_scripts/06_prepare_sft_data.sh
+```
+
+This downloads and validates the six training subsets under
+`data/Monet-SFT-125K`. The scripts in `script_examples/` use that path by
+default. Override it when needed:
+
+```bash
+DATASET_DIR=/path/to/Monet-SFT-125K bash script_examples/sft_stage1.sh
+```
+
 
 ## 🔧SFT Training
 ### Training Scripts

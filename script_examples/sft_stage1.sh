@@ -1,26 +1,22 @@
-conda activate monet
-cd Monet
+#!/usr/bin/env bash
+set -euo pipefail
 
-# SFT stage1
-CE_EMPHASIZE_FACTOR=2.0
-SAVE_CKPT=sft_stage1_ce${CE_EMPHASIZE_FACTOR}
-torchrun --nproc-per-node=8 --master-port=29501 -m src.main \
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/sft_config.sh"
+cd "$REPO_DIR"
+
+CE_EMPHASIZE_FACTOR="${CE_EMPHASIZE_FACTOR:-2.0}"
+SAVE_CKPT="${SAVE_CKPT:-sft_stage1_ce${CE_EMPHASIZE_FACTOR}}"
+
+torchrun --nproc-per-node="$NPROC_PER_NODE" --master-port="${MASTER_PORT:-29501}" -m src.main \
   --epochs 4 \
   --bsz 1 \
   --grad_accum_steps 16 \
   --stage "sft_stage1" \
-  --data_path \
-    "path_to_your_dataset/Monet-SFT-125K/Visual_CoT/train.json" \
-    "path_to_your_dataset/Monet-SFT-125K/CogCoM/train.json" \
-    "path_to_your_dataset/Monet-SFT-125K/ReFocus/train.json" \
-    "path_to_your_dataset/Monet-SFT-125K/Zebra_CoT_count/train.json" \
-    "path_to_your_dataset/Monet-SFT-125K/Zebra_CoT_visual_search/train.json" \
-    "path_to_your_dataset/Monet-SFT-125K/Zebra_CoT_geometry/train.json" \
-  --load_model_path path_to_your_model/Qwen2.5-VL-7B-Instruct \
-  --save_model_path path_to_your_model/Monet_checkpoints/sft_stage1/${SAVE_CKPT} \
-  --dataset_root path_to_your_dataset/Monet-SFT-125K \
+  --data_path "${SFT_DATA_PATHS[@]}" \
+  --load_model_path "$BASE_MODEL_PATH" \
+  --save_model_path "$CHECKPOINT_DIR/sft_stage1/$SAVE_CKPT" \
+  --dataset_root "$DATASET_DIR" \
   --deepspeed ./deepspeed/ds_zero2_gpu.json \
-  --wandb_name ${SAVE_CKPT} \
-  --ce_emphasize_factor ${CE_EMPHASIZE_FACTOR}
-
-  
+  --wandb_name "$SAVE_CKPT" \
+  --ce_emphasize_factor "$CE_EMPHASIZE_FACTOR"
