@@ -23,7 +23,12 @@ source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
 # --- model + Monet knobs ---------------------------------------------------
-export MODEL_PATH="${MODEL_PATH:-$REPO_DIR/models/Monet-7B}"
+MODEL_PATH="${MODEL_PATH:-$REPO_DIR/models/Monet-7B}"
+# Canonicalize to an absolute path: the script later cd's into $EVAL_DIR, after which
+# a relative MODEL_PATH would no longer resolve and VLMEvalKit would mistake it for a
+# Hugging Face repo id and try to download it.
+MODEL_PATH="$(realpath -m "$MODEL_PATH" 2>/dev/null || readlink -f "$MODEL_PATH")"
+export MODEL_PATH
 export LATENT_SIZE="${LATENT_SIZE:-10}"
 # System prompt + token budget (run_monet.py reads these; defaults match README).
 export MONET_MAX_NEW_TOKENS="${MONET_MAX_NEW_TOKENS:-2048}"

@@ -14,6 +14,11 @@ bash run_scripts/03_setup_eval.sh                       # clone+install VLMEvalK
 DATASETS="MMBench_DEV_EN" bash run_scripts/04_run_eval.sh                       # full eval
 DATASETS="MMBench_DEV_EN" SUBSET=head   FRAC=0.1 bash run_scripts/04_run_eval.sh   # first 10%
 DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh   # random 200
+
+# --- dataset prep (HF -> data/<name>/{images,samples.json}) ---
+bash run_scripts/05_prepare_data.sh VisualPuzzles            # neulab/VisualPuzzles
+bash run_scripts/05_prepare_data.sh MathVision --split test  # MathLLMs/MathVision
+bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test   # any HF dataset
 ```
 
 ## What each step does
@@ -29,6 +34,44 @@ DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh
 - **04_run_eval.sh** — restores each dataset's TSV to full, optionally subsets it, then runs
   `run_monet.py --model Monet --data $DATASETS`.
 - **eval_subset.py** — helper used by 04 to build a reproducible row-subset of a dataset TSV.
+- **05_prepare_data.sh** / **prepare_dataset.py** — download any Hugging Face benchmark and
+  normalize it to the common `data/<name>/` layout (see "Dataset preparation" below).
+
+## Dataset preparation (05_prepare_data.sh)
+Downloads a Hugging Face benchmark and normalizes it to one common, evaluation-agnostic
+layout so any new dataset drops in the same way:
+
+```
+data/<name>/
+  images/          # one PNG per image, extracted from the dataset
+  samples.json     # list of records; image columns replaced by relative paths
+```
+
+Each record keeps **every original column**; only the image column(s) are rewritten:
+exactly one image per row → `"image": "images/000123.png"`; several →
+`"images": ["images/000123_0.png", ...]`.
+
+**Why it's flexible:** image columns are **auto-detected** from the HF dataset features
+(anything typed as `datasets.Image`), so most datasets need no per-dataset code — just a
+name and `--repo`. The `REGISTRY` at the top of [prepare_dataset.py](prepare_dataset.py)
+only pins convenient defaults (repo id, split, config) for known names. To make a new
+dataset a first-class name, add one line there; otherwise pass `--repo` ad-hoc.
+
+```bash
+bash run_scripts/05_prepare_data.sh VisualPuzzles                 # -> data/VisualPuzzles/
+bash run_scripts/05_prepare_data.sh MathVision --split testmini   # -> data/MathVision/
+bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test --config default
+bash run_scripts/05_prepare_data.sh VisualPuzzles --limit 20      # first 20 rows (smoke test)
+```
+
+| Dataset | repo | default split | image column (auto) |
+|---|---|---|---|
+| `VisualPuzzles` | `neulab/VisualPuzzles` | `train` (1168 rows) | `image` |
+| `MathVision` | `MathLLMs/MathVision` | `test` (3040; `testmini`=304) | `decoded_image` (its `image` string path is dropped) |
+
+**Flags** (forwarded to `prepare_dataset.py`): `--repo`, `--config`, `--split`,
+`--out-root` (default `data/`), `--image-fields a,b` (override auto-detection),
+`--limit N`. For gated datasets, run `hf auth login` first.
 
 ## Evaluation knobs (env vars for 04_run_eval.sh)
 | Var | Default | Notes |

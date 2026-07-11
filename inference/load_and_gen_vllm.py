@@ -18,10 +18,10 @@ from PIL import Image
 
 # quick setup of the parameters
 max_num_seqs = 512
-temperature = 0.1
+temperature = 0.0
 top_k = 50
 top_p = 0.8
-repetition_penalty = 1.01
+repetition_penalty = 1.0
 best_of = 1
 n_generate_sample = best_of
 max_tokens = 4096
