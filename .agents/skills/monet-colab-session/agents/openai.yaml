@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monet Colab Session"
+  short_description: "Prepare Monet source and dependencies on Colab"
+  default_prompt: "Use $monet-colab-session to create and provision a Colab GPU session for this Monet checkout."
