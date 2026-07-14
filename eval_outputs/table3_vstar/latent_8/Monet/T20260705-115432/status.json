@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "eval_id": "T20260705-115432",
+  "created_at": "2026-07-05T11:54:32.973939+00:00",
+  "datasets": {
+    "VStarBench": {
+      "status": "done",
+      "prediction_file": "Monet_VStarBench.xlsx",
+      "updated_at": "2026-07-05T11:57:40.283477+00:00",
+      "judge_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      "source_run": "T20260705-114407",
+      "reuse_aux": "all",
+      "primary_metric": "Overall Acc",
+      "metrics": {
+        "split=none|Overall": 0.7120418848167539,
+        "split=none|direct_attributes": 0.7130434782608696,
+        "split=none|relative_position": 0.7105263157894737
+      }
+    }
+  },
+  "model_name": "Monet",
+  "commit": "3fb3b5bd",
+  "argv": [
+    "/home/phucnlt2/Monet/VLMEvalKit/run.py",
+    "--model",
+    "Monet",
+    "--data",
+    "VStarBench",
+    "--work-dir",
+    "/home/phucnlt2/Monet/eval_outputs/table3_vstar/latent_8",
+    "--mode",
+    "eval",
+    "--reuse",
+    "--judge",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "--judge-base-url",
+    "https://integrate.api.nvidia.com/v1",
+    "--judge-api-nproc",
+    "1",
+    "--judge-args",
+    "{\"temperature\": 0}",
+    "--judge-key",
+    "[REDACTED]"
+  ],
+  "api_mode": false,
+  "world_size": 1,
+  "pred_format": "xlsx",
+  "eval_format": "csv",
+  "mode": "eval",
+  "reuse": true,
+  "reuse_aux": "all",
+  "updated_at": "2026-07-05T11:57:40.282222+00:00"
+}

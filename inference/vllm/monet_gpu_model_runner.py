@@ -67,6 +67,14 @@ from vllm.v1.spec_decode.medusa import MedusaProposer
 from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
 from vllm.v1.spec_decode.ngram_proposer import NgramProposer
 from vllm.v1.worker.gpu_input_batch import CachedRequestState, InputBatch
+
+from .latent_policy_logits import (
+    FORCE_FIRST_POLICY,
+    POLICY_EXTRA_ARG,
+    SUPPRESS_LATENT_START_POLICY,
+    force_token_for_row,
+    suppress_token_for_row,
+)
 from vllm.v1.worker.lora_model_runner_mixin import LoRAModelRunnerMixin
 
 from vllm.v1.sample.logits_processor import LogitsProcessorManager
@@ -403,6 +411,7 @@ class GPUModelRunner(LoRAModelRunnerMixin):
         for req_id in scheduler_output.finished_req_ids:
             self.requests.pop(req_id, None)
             self.encoder_cache.pop(req_id, None)
+            self.latent_state.pop(req_id, None)
         # Remove the finished requests from the persistent batch.
         # NOTE(woosuk): There could be an edge case where finished_req_ids and
         # scheduled_req_ids overlap. This happens when a request is aborted and
@@ -1554,6 +1563,28 @@ class GPUModelRunner(LoRAModelRunnerMixin):
         # Apply structured output bitmasks if present
         if scheduler_output.grammar_bitmask is not None:
             self.apply_grammar_bitmask(scheduler_output, logits)
+
+        # During partial prefill sampled tokens are discarded. Force-first
+        # therefore remains active until the first accepted output token, while
+        # suppression is applied at every sampling step.
+        assert logits is not None
+        for req_index, req_id in enumerate(self.input_batch.req_ids):
+            req_state = self.requests[req_id]
+            sampling_params = req_state.sampling_params
+            extra_args = sampling_params.extra_args if sampling_params else None
+            policy = extra_args.get(POLICY_EXTRA_ARG) if extra_args else None
+            if policy is None:
+                continue
+            if policy not in (FORCE_FIRST_POLICY, SUPPRESS_LATENT_START_POLICY):
+                raise ValueError(f"unsupported Monet latent policy: {policy!r}")
+            if not self.latent_enabled:
+                raise RuntimeError(f"{policy} requires Monet latent mode to be enabled")
+            if self.speculative_config:
+                raise RuntimeError(f"{policy} does not support speculative decoding")
+            if policy == FORCE_FIRST_POLICY and not req_state.output_token_ids:
+                force_token_for_row(logits, req_index, self.latent_start_id)
+            elif policy == SUPPRESS_LATENT_START_POLICY:
+                suppress_token_for_row(logits, req_index, self.latent_start_id)
 
         # Sample the next token and get logprobs if needed.
         sampling_metadata = self.input_batch.sampling_metadata

@@ -15,6 +15,9 @@ DATASETS="MMBench_DEV_EN" bash run_scripts/04_run_eval.sh                       
 DATASETS="MMBench_DEV_EN" SUBSET=head   FRAC=0.1 bash run_scripts/04_run_eval.sh   # first 10%
 DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh   # random 200
 
+# --- forced-latent counterfactuals (VStarBench, X=15/25, seed 0) ---
+bash run_scripts/06_run_latent_policy_eval.sh
+
 # --- dataset prep (HF -> data/<name>/{images,samples.json}) ---
 bash run_scripts/05_prepare_data.sh VisualPuzzles            # neulab/VisualPuzzles
 bash run_scripts/05_prepare_data.sh MathVision --split test  # MathLLMs/MathVision
@@ -33,6 +36,9 @@ bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test   # 
   (registers the `Monet` model + the required system prompt, and disables md5 TSV re-download).
 - **04_run_eval.sh** — restores each dataset's TSV to full, optionally subsets it, then runs
   `run_monet.py --model Monet --data $DATASETS`.
+- **06_run_latent_policy_eval.sh** — forces the first latent block on deterministic X% samples,
+  optionally suppresses latent activation on all other samples, runs VStarBench, and writes
+  paired baseline reports under `eval_outputs/vstar_latent_force/`.
 - **eval_subset.py** — helper used by 04 to build a reproducible row-subset of a dataset TSV.
 - **05_prepare_data.sh** / **prepare_dataset.py** — download any Hugging Face benchmark and
   normalize it to the common `data/<name>/` layout (see "Dataset preparation" below).
@@ -84,6 +90,29 @@ bash run_scripts/05_prepare_data.sh VisualPuzzles --limit 20      # first 20 row
 | `JUDGE` | — | API judge model (e.g. `gpt-4o-mini`); README recommends one. With `JUDGE_BASE_URL`+`JUDGE_KEY` for DeepSeek/Gemini-compatible endpoints |
 | `MONET_MAX_NEW_TOKENS` | `2048` | generation budget per question |
 | `WORK_DIR` | `eval_outputs/<subset>` | output dir (auto-separated per subset) |
+| `MONET_LATENT_POLICY_MANIFEST` | — | validated per-sample force/suppress policy; normally set by script 06 |
+| `REUSE` | `1` normally, `0` with a policy | reuse prior predictions only when explicitly safe |
+
+## Forced-latent counterfactuals
+
+The policy launcher defines X as the percentage of samples that are explicitly forced to emit
+`<abs_vis_token>` as their first generated token. Samples outside that set retain the model's
+natural activation behavior, so the realized activation rate is generally higher than X.
+
+Set `SUPPRESS_UNSELECTED=1` to prohibit latent starts on every unselected sample. In this
+controlled mode, realized activation is exactly the selected count when both intervention
+compliance checks pass. Use a distinct `OUTPUT_ROOT` because manifests are immutable:
+
+```bash
+X_VALUES="10 20" SUPPRESS_UNSELECTED=1 \
+OUTPUT_ROOT="$PWD/eval_outputs/vstar_latent_force/suppress_unselected" \
+bash run_scripts/06_run_latent_policy_eval.sh
+```
+
+Assignments use a stable SHA-256 ranking and are nested: with the same seed, every X=15 sample
+is also in X=25. Override the defaults with `X_VALUES`, `FORCE_SEED`, `BASELINE_RESULT`, or
+`OUTPUT_ROOT`. The final report includes paired correctness transitions, effects split by
+baseline activation, and generation-drift checks.
 
 ## How the subset works (and its one caveat)
 VLMEvalKit has **no built-in subset flag**. Each dataset is a single self-contained TSV in

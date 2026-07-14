@@ -1,0 +1,45 @@
+{
+  "datasets": {
+    "VStarBench": {
+      "forced_count": 19,
+      "forced_indices": [
+        170,
+        22,
+        72,
+        66,
+        65,
+        172,
+        175,
+        29,
+        111,
+        57,
+        100,
+        71,
+        135,
+        101,
+        185,
+        188,
+        92,
+        73,
+        55
+      ],
+      "indices_sha256": "cceafaa8cd46f23b82814a742a131d3a9a615108d81472c8a744e064e915a0b8",
+      "total": 191
+    }
+  },
+  "mode": "force_selected_suppress_elsewhere",
+  "runtime": {
+    "latent_end_id": 151667,
+    "latent_size": 16,
+    "latent_start_id": 151666,
+    "max_new_tokens": 2048,
+    "max_pixels": 1003520,
+    "model_config_sha256": "7b1341fb4aad6ea8947525d9ec838e2ee70cadb4dae8612ce19852a6be792d69",
+    "model_path": "/home/phucnlt2/Monet/models/Monet-7B",
+    "system_prompt_sha256": "25f3571b629b96401a62b514a7762325c1cb47d8d8e843bae19b1e367adc1705"
+  },
+  "schema_version": 1,
+  "seed": 0,
+  "selection_method": "sha256_rank_v1",
+  "x_percent": 10.0
+}

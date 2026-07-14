@@ -1,0 +1,22 @@
+diff --git a/vlmeval/inference.py b/vlmeval/inference.py
+--- a/vlmeval/inference.py
++++ b/vlmeval/inference.py
+@@ -176,6 +176,8 @@ def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, a
+         return model
+     else:
+         model.set_dump_image(dataset.dump_image)
++        if hasattr(model, 'set_monet_dataset_indices'):
++            model.set_monet_dataset_indices(dataset_name, data_indices)
+ 
+     for i in tqdm(range(lt), desc=f'Infer {model_name}/{dataset_name}, Rank {rank}/{world_size}'):
+         idx = data.iloc[i]['index']
+@@ -190,6 +192,9 @@ def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, a
+         else:
+             struct = dataset.build_prompt(data.iloc[i])
+ 
++        if hasattr(model, 'set_monet_sample_context'):
++            model.set_monet_sample_context(dataset_name, idx)
++
+         # If `SKIP_ERR` flag is set, the model will skip the generation if error is encountered
+         if os.environ.get('SKIP_ERR', False) == '1':
+             FAIL_MSG = 'Failed to obtain answer'
