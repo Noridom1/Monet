@@ -1,0 +1,24 @@
+{
+  "activation_capture": "inline_ltnt_v1",
+  "datasets": {
+    "VStarBench": {
+      "path": "/home/phucnlt2/LMUData/VStarBench.tsv",
+      "rows": 191,
+      "sha256": "9826a55e0e0992a59a91b28c991f07e0ac75be9f183ed3802151985425f4002e"
+    }
+  },
+  "gpu_memory_utilization": "0.9",
+  "judge": {
+    "base_url": "https://integrate.api.nvidia.com/v1",
+    "concurrency": "1",
+    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    "rpm": "40",
+    "temperature": 0
+  },
+  "latent_size": 10,
+  "max_new_tokens": 2048,
+  "max_pixels": 1003520,
+  "model_config_sha256": "7b1341fb4aad6ea8947525d9ec838e2ee70cadb4dae8612ce19852a6be792d69",
+  "model_path": "/home/phucnlt2/Monet/models/Monet-7B",
+  "vlmevalkit_commit": "3fb3b5bd33b4edcd583503b06027daef8cc0dd32"
+}

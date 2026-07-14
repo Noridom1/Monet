@@ -1,0 +1,22 @@
+{
+  "activation_capture": "inline_ltnt_v1",
+  "complete": true,
+  "datasets": [
+    "VStarBench"
+  ],
+  "failures": [],
+  "latent_sizes": [
+    8,
+    10,
+    12,
+    16
+  ],
+  "paper_targets": {
+    "VStarBench": 83.25,
+    "HRBench4K": 71.0,
+    "HRBench8K": 68.0,
+    "MME-RealWorld-Lite": 55.5
+  },
+  "score_selection": "highest overall per dataset; smaller latent size wins ties",
+  "scores_required": true
+}

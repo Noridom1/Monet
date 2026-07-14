@@ -42,8 +42,23 @@ pip install "vllm==0.10.0" "transformers==4.54.0" qwen-vl-utils
 # --- 3. drop the Monet runner in as an importable package ------------------
 mkdir -p "$EVAL_DIR/Monet_models"
 cp "$REPO_DIR/inference/vllm/monet_gpu_model_runner.py" "$EVAL_DIR/Monet_models/"
+cp "$REPO_DIR/inference/vllm/latent_policy_logits.py" "$EVAL_DIR/Monet_models/"
 : > "$EVAL_DIR/Monet_models/__init__.py"   # make it a package
-echo "[setup-eval] copied monet_gpu_model_runner.py -> Monet_models/"
+echo "[setup-eval] copied Monet runner and latent-policy logits helper -> Monet_models/"
+
+# Pass the current dataset index to models that implement Monet's optional
+# per-sample policy hook. Keep this as a checked patch so upstream drift fails
+# visibly instead of applying an intervention to the wrong sample.
+CONTEXT_PATCH="$REPO_DIR/run_scripts/vlmeval_sample_context.patch"
+if git -C "$EVAL_DIR" apply --reverse --check "$CONTEXT_PATCH" >/dev/null 2>&1; then
+  echo "[setup-eval] sample-context patch already applied"
+elif git -C "$EVAL_DIR" apply --check "$CONTEXT_PATCH" >/dev/null 2>&1; then
+  git -C "$EVAL_DIR" apply "$CONTEXT_PATCH"
+  echo "[setup-eval] applied sample-context patch"
+else
+  echo "[setup-eval] ERROR: VLMEvalKit inference.py does not match the policy patch" >&2
+  exit 1
+fi
 
 # --- 4a. sitecustomize.py (runs in EVERY python process; keep it minimal) --
 cat > "$EVAL_DIR/sitecustomize.py" <<'PYCODE'
@@ -67,68 +82,12 @@ sys.modules["vllm.v1.worker.gpu_model_runner"] = importlib.import_module(
 PYCODE
 echo "[setup-eval] wrote sitecustomize.py"
 
-# --- 4b. run_monet.py wrapper (parent-only: register model + patch md5) ----
-cat > "$EVAL_DIR/run_monet.py" <<'PYCODE'
-#!/usr/bin/env python
-"""Thin wrapper around VLMEvalKit's run.py for evaluating Monet-7B.
-
-Run it exactly like run.py, e.g.:
-    python run_monet.py --model Monet --data MMBench_DEV_EN --work-dir outputs
-
-It does two parent-process-only things before delegating to run.py:
-  1. Registers "Monet" in vlmeval's supported_VLM (Qwen2.5-VL + vLLM + the required
-     Monet system prompt), so you can pass `--model Monet` and use plain official
-     dataset names with their official evaluators.
-  2. Disables VLMEvalKit's md5-triggered TSV re-download, so a locally-subsetted
-     dataset TSV is used as-is instead of being re-downloaded over the top.
-
-Config via env vars (set by 04_run_eval.sh):
-  MODEL_PATH               path to the Monet model (required)
-  LATENT_SIZE              latent embeddings per block (read by the runner; default 10)
-  MONET_SYSTEM_PROMPT      system prompt (defaults to the README-recommended one)
-  MONET_MAX_NEW_TOKENS     max new tokens (default 2048)
-  MONET_MAX_PIXELS         max image pixels for the processor (default 1280*28*28)
-"""
-import os
-import sys
-import runpy
-from functools import partial
-
-# 1) honor local (possibly subsetted) TSVs: never re-download on md5 mismatch.
-from vlmeval.dataset import image_base as _ib
-_orig_prepare_tsv = _ib.ImageBaseDataset.prepare_tsv
-def _prepare_tsv_no_md5(self, url, file_md5=None):
-    return _orig_prepare_tsv(self, url, None)
-_ib.ImageBaseDataset.prepare_tsv = _prepare_tsv_no_md5
-
-# 2) register the Monet model.
-from vlmeval import config as _cfg
-from vlmeval import vlm as _vlm
-
-_MODEL_PATH = os.environ.get("MODEL_PATH")
-assert _MODEL_PATH, "MODEL_PATH env var must point to the Monet model directory"
-_SYSTEM_PROMPT = os.environ.get(
-    "MONET_SYSTEM_PROMPT",
-    "You are a helpful multimodal assistant. You are required to answer the "
-    "question based on the image provided. Put your final answer in \\boxed{}.",
-)
-_cfg.supported_VLM["Monet"] = partial(
-    _vlm.Qwen2VLChat,
-    model_path=_MODEL_PATH,
-    use_vllm=True,
-    system_prompt=_SYSTEM_PROMPT,
-    post_process=True,  # extract the final \boxed{...} answer
-    max_new_tokens=int(os.environ.get("MONET_MAX_NEW_TOKENS", "2048")),
-    max_pixels=int(os.environ.get("MONET_MAX_PIXELS", str(1280 * 28 * 28))),
-)
-
-# 3) hand off to the real run.py (it does `from vlmeval.config import supported_VLM`,
-#    which is the same dict object we just edited).
-_here = os.path.dirname(os.path.abspath(__file__))
-sys.argv[0] = os.path.join(_here, "run.py")
-runpy.run_path(sys.argv[0], run_name="__main__")
-PYCODE
-echo "[setup-eval] wrote run_monet.py"
+# --- 4b. parent-only adapter and helpers -----------------------------------
+cp "$REPO_DIR/run_scripts/vlmeval_run_monet.py" "$EVAL_DIR/run_monet.py"
+cp "$REPO_DIR/run_scripts/latent_activation.py" "$EVAL_DIR/latent_activation.py"
+cp "$REPO_DIR/run_scripts/latent_policy.py" "$EVAL_DIR/latent_policy.py"
+cp "$REPO_DIR/run_scripts/secret_redaction.py" "$EVAL_DIR/secret_redaction.py"
+echo "[setup-eval] copied tracked run_monet.py and policy helpers"
 
 echo
 echo "[setup-eval] DONE. VLMEvalKit ready at: $EVAL_DIR"
