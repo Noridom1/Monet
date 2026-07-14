@@ -1,8 +1,8 @@
 # Running Monet with the Colab CLI
 
 The scripts in this directory package the local Monet source, create or reuse a
-Google Colab GPU session, unpack the source under `/content/Monet`, and prepare
-the conda-based inference environment.
+Google Colab GPU session, unpack the source under `/content/Monet`, prepare the
+conda-based inference environment, and restore evaluation data from Drive.
 
 The dependency setup has been smoke-tested on a Colab T4 runtime. Monet's vLLM
 V1 inference runner requires compute capability 8.0 or newer, so the session
@@ -20,8 +20,9 @@ The automated setup includes:
 
 The source archive intentionally excludes `.git`, `models`, `data`,
 `eval_outputs`, `VLMEvalKit`, checkpoints, inspection outputs, and common
-caches. Model weights, evaluation datasets, VLMEvalKit, judge credentials, and
-output persistence must be provisioned separately.
+caches. Model weights, VLMEvalKit, judge credentials, and output persistence
+must be provisioned separately. The four Table 3 evaluation datasets have a
+separate, Conda-free Drive workflow described below.
 
 Do not upload a local conda environment or `site-packages`. Recreate the
 environment in Colab with the dependency script so its binaries match the
@@ -53,6 +54,23 @@ Check the actual accelerator allocated by Colab and open a console:
 ```bash
 colab status -s monet-a100
 colab console -s monet-a100
+```
+
+Restore the four evaluation datasets from the persistent Drive archive:
+
+```bash
+bash run_scripts/colab/prepare_eval_data.sh --session monet-a100
+```
+
+This mounts Drive, verifies
+`MyDrive/Monet/monet_eval_datasets.zip`, and extracts the TSVs to
+`/content/LMUData`. If the archive does not exist, the same command downloads
+VStarBench, HRBench4K, HRBench8K, and MME-RealWorld-Lite directly into a new
+archive before restoring them. It does not install Conda or download a model.
+Set `LMUData` before running VLMEvalKit:
+
+```bash
+export LMUData=/content/LMUData
 ```
 
 Inside the Colab console, activate and verify the environment:
