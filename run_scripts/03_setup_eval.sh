@@ -94,10 +94,6 @@ import sys
 import runpy
 from functools import partial
 
-if os.environ.get("MONET_RATE_LIMIT_JUDGE") == "1":
-    from vlmeval_rate_limit import install as _install_judge_rate_limit
-    _install_judge_rate_limit()
-
 # 1) honor local (possibly subsetted) TSVs: never re-download on md5 mismatch.
 from vlmeval.dataset import image_base as _ib
 _orig_prepare_tsv = _ib.ImageBaseDataset.prepare_tsv
@@ -121,10 +117,7 @@ _cfg.supported_VLM["Monet"] = partial(
     model_path=_MODEL_PATH,
     use_vllm=True,
     system_prompt=_SYSTEM_PROMPT,
-    # Preserve the raw response so <abs_vis_token> (token id 151666) remains
-    # available for per-sample activation measurement. The MCQ evaluator/judge
-    # extracts the final option from this response.
-    post_process=False,
+    post_process=True,  # extract the final \boxed{...} answer
     max_new_tokens=int(os.environ.get("MONET_MAX_NEW_TOKENS", "2048")),
     max_pixels=int(os.environ.get("MONET_MAX_PIXELS", str(1280 * 28 * 28))),
 )
@@ -132,9 +125,6 @@ _cfg.supported_VLM["Monet"] = partial(
 # 3) hand off to the real run.py (it does `from vlmeval.config import supported_VLM`,
 #    which is the same dict object we just edited).
 _here = os.path.dirname(os.path.abspath(__file__))
-if "--judge-key" not in sys.argv and os.environ.get("AI_PLATFORM_API_KEY"):
-    # Keep credentials out of shell command lines and persisted run metadata.
-    sys.argv.extend(["--judge-key", os.environ["AI_PLATFORM_API_KEY"]])
 sys.argv[0] = os.path.join(_here, "run.py")
 runpy.run_path(sys.argv[0], run_name="__main__")
 PYCODE
