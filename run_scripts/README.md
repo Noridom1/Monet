@@ -18,6 +18,9 @@ DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh
 # --- forced-latent counterfactuals (VStarBench, X=15/25, seed 0) ---
 bash run_scripts/06_run_latent_policy_eval.sh
 
+# --- targeted rescue of natural-inactive baseline errors ---
+JUDGE="<same-judge-as-baseline>" bash run_scripts/07_run_targeted_latent_rescue_eval.sh
+
 # --- dataset prep (HF -> data/<name>/{images,samples.json}) ---
 bash run_scripts/05_prepare_data.sh VisualPuzzles            # neulab/VisualPuzzles
 bash run_scripts/05_prepare_data.sh MathVision --split test  # MathLLMs/MathVision
@@ -40,6 +43,9 @@ bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test   # 
 - **06_run_latent_policy_eval.sh** — forces the first latent block on deterministic X% samples,
   optionally suppresses latent activation on all other samples, runs VStarBench, and writes
   paired baseline reports under `eval_outputs/vstar_latent_force/`.
+- **07_run_targeted_latent_rescue_eval.sh** — selects VStarBench baseline samples with no
+  natural activation and `hit == 0`, reruns only those samples with forced latent thinking,
+  and reports correction rates overall and by category.
 - **eval_subset.py** — helper used by 04 to build a reproducible row-subset of a dataset TSV.
 - **05_prepare_data.sh** / **prepare_dataset.py** — download any Hugging Face benchmark and
   normalize it to the common `data/<name>/` layout (see "Dataset preparation" below).
@@ -84,10 +90,11 @@ bash run_scripts/05_prepare_data.sh VisualPuzzles --limit 20      # first 20 row
 | Var | Default | Notes |
 |---|---|---|
 | `DATASETS` | `MMBench_DEV_EN` | space-separated official VLMEvalKit dataset names |
-| `SUBSET` | `full` | `full` \| `head` (first k%/N) \| `random` (seeded) |
+| `SUBSET` | `full` | `full` \| `head` (first k%/N) \| `random` (seeded) \| `indices` (exact list) |
 | `FRAC` | — | fraction in (0,1], e.g. `0.1`. Set **one** of FRAC/N for subsets |
 | `N` | — | absolute sample count, e.g. `200` |
 | `SEED` | `0` | seed for `SUBSET=random` |
+| `INDICES_FILE` | — | CSV/XLSX/TSV index list required by `SUBSET=indices` |
 | `JUDGE` | — | API judge model (e.g. `gpt-4o-mini`); README recommends one. With `JUDGE_BASE_URL`+`JUDGE_KEY` for DeepSeek/Gemini-compatible endpoints |
 | `MONET_MAX_NEW_TOKENS` | `2048` | generation budget per question |
 | `WORK_DIR` | `eval_outputs/<subset>` | output dir (auto-separated per subset) |
@@ -114,6 +121,24 @@ Assignments use a stable SHA-256 ranking and are nested: with the same seed, eve
 is also in X=25. Override the defaults with `X_VALUES`, `FORCE_SEED`, `BASELINE_RESULT`, or
 `OUTPUT_ROOT`. The final report includes paired correctness transitions, effects split by
 baseline activation, and generation-drift checks.
+
+## Targeted latent rescue
+
+This diagnostic starts from a judged natural baseline and selects only samples whose response
+contains `<ltnt:0>` and whose score is `hit == 0`. It evaluates exactly that index subset with
+`force_first` on every sample, then reports the fraction corrected overall and separately for
+each VStarBench category:
+
+```bash
+JUDGE="<same-judge-as-baseline>" \
+bash run_scripts/07_run_targeted_latent_rescue_eval.sh
+```
+
+Set `BASELINE_RESULT`, `MODEL_PATH`, `LATENT_SIZE`, or `OUTPUT_ROOT` to override the defaults.
+`JUDGE` is required and should match the baseline judge. Outputs include the immutable policy
+manifest, `target_samples.csv`, per-sample transitions, and Markdown/CSV summaries under
+`eval_outputs/vstar_latent_rescue/natural_inactive_wrong/`. Because target selection uses
+baseline correctness, this is an oracle-conditioned analysis rather than a deployable router.
 
 ## How the subset works (and its one caveat)
 VLMEvalKit has **no built-in subset flag**. Each dataset is a single self-contained TSV in

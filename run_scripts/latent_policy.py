@@ -697,6 +697,196 @@ def analyze_runs(
     return markdown_path, summary_path, samples_path
 
 
+def _validated_rescue_baseline(path: str | Path):
+    import pandas as pd
+
+    baseline = _load_table(path).copy()
+    required = {"index", "prediction", "hit", "category"}
+    if not required.issubset(baseline.columns):
+        raise ValueError(f"baseline is missing columns: {sorted(required - set(baseline.columns))}")
+    baseline["_key"] = baseline["index"].map(canonical_index)
+    if baseline["_key"].duplicated().any():
+        raise ValueError("baseline contains duplicate indices")
+    baseline["hit"] = pd.to_numeric(baseline["hit"], errors="raise")
+    if not baseline["hit"].isin([0, 1]).all():
+        raise ValueError("baseline hit column must contain only 0 or 1")
+    baseline["baseline_blocks"] = baseline["prediction"].map(latent_block_count)
+    if baseline["baseline_blocks"].isna().any():
+        raise ValueError("baseline contains missing or ambiguous <ltnt:N> metadata")
+    baseline["baseline_activated"] = baseline["baseline_blocks"].gt(0)
+    return baseline
+
+
+def prepare_rescue_policy(
+    *,
+    baseline_path: str | Path,
+    dataset: str,
+    targets_output: str | Path,
+    manifest_output: str | Path,
+    model_path: str | Path,
+    latent_size: int,
+    max_new_tokens: int,
+    max_pixels: int,
+    system_prompt: str,
+    latent_start_id: int = 151666,
+    latent_end_id: int = 151667,
+) -> tuple[Path, Path]:
+    """Select natural-inactive baseline errors and force latent thinking on all of them."""
+    baseline = _validated_rescue_baseline(baseline_path)
+    targets = baseline[(~baseline["baseline_activated"]) & baseline["hit"].eq(0)].copy()
+    if targets.empty:
+        raise ValueError("baseline has no natural-inactive incorrect samples to rescue")
+
+    manifest = build_manifest(
+        dataset=dataset,
+        indices=targets["index"],
+        x_percent=100.0,
+        seed=0,
+        model_path=model_path,
+        latent_size=latent_size,
+        max_new_tokens=max_new_tokens,
+        max_pixels=max_pixels,
+        system_prompt=system_prompt,
+        latent_start_id=latent_start_id,
+        latent_end_id=latent_end_id,
+        suppress_unselected=False,
+    )
+    manifest["targeting"] = {
+        "method": "natural_inactive_incorrect_v1",
+        "baseline_sha256": file_sha256(baseline_path),
+        "predicate": "latent_block_count == 0 and hit == 0",
+        "baseline_total": len(baseline),
+        "natural_inactive": int((~baseline["baseline_activated"]).sum()),
+        "baseline_incorrect": int(baseline["hit"].eq(0).sum()),
+        "target_count": len(targets),
+    }
+
+    manifest_path = Path(manifest_output)
+    write_manifest(manifest, manifest_path)
+    targets_path = Path(targets_output)
+    targets_path.parent.mkdir(parents=True, exist_ok=True)
+    targets[[
+        "index", "category", "prediction", "hit", "baseline_blocks", "baseline_activated"
+    ]].to_csv(targets_path, index=False)
+    return targets_path, manifest_path
+
+
+def analyze_rescue_run(
+    *,
+    baseline_path: str | Path,
+    targets_path: str | Path,
+    run_dir: str | Path,
+    output_dir: str | Path,
+    dataset: str,
+) -> tuple[Path, Path, Path]:
+    """Report how often forced latent thinking corrects targeted baseline errors."""
+    import pandas as pd
+
+    baseline = _validated_rescue_baseline(baseline_path)
+    expected = baseline[(~baseline["baseline_activated"]) & baseline["hit"].eq(0)].copy()
+    targets = _load_table(targets_path).copy()
+    if "index" not in targets.columns:
+        raise ValueError(f"targets file lacks an index column: {targets_path}")
+    target_keys = targets["index"].map(canonical_index)
+    if target_keys.duplicated().any():
+        raise ValueError("targets file contains duplicate indices")
+    if set(target_keys) != set(expected["_key"]):
+        raise ValueError("targets do not match natural-inactive incorrect baseline samples")
+
+    run_dir = Path(run_dir)
+    manifest = LatentPolicyManifest.load(run_dir / "policy_manifest.json")
+    manifest.validate_dataset_indices(dataset, targets["index"])
+    if any(manifest.policy_for(dataset, index) != FORCE_FIRST_POLICY for index in targets["index"]):
+        raise ValueError("rescue manifest must force every target sample")
+
+    result_path = _find_result(run_dir, dataset)
+    result = _load_table(result_path).copy()
+    required = {"index", "prediction", "hit"}
+    if not required.issubset(result.columns):
+        raise ValueError(f"result is missing columns: {sorted(required - set(result.columns))}")
+    result["_key"] = result["index"].map(canonical_index)
+    if result["_key"].duplicated().any():
+        raise ValueError("rescue result contains duplicate indices")
+    result["hit"] = pd.to_numeric(result["hit"], errors="raise")
+    if not result["hit"].isin([0, 1]).all():
+        raise ValueError("rescue result hit column must contain only 0 or 1")
+    result["forced_blocks"] = result["prediction"].map(latent_block_count)
+    if result["forced_blocks"].isna().any():
+        raise ValueError("rescue result contains missing or ambiguous <ltnt:N> metadata")
+    if result["forced_blocks"].le(0).any():
+        raise ValueError("rescue result contains a target without forced latent activation")
+
+    samples = expected[[
+        "_key", "index", "category", "prediction", "hit", "baseline_blocks"
+    ]].merge(
+        result[["_key", "prediction", "hit", "forced_blocks"]],
+        on="_key",
+        how="outer",
+        validate="one_to_one",
+        suffixes=("_baseline", "_forced"),
+        indicator=True,
+    )
+    if not samples["_merge"].eq("both").all():
+        raise ValueError(f"rescue result indices do not match targets: {result_path}")
+    samples.drop(columns=["_merge"], inplace=True)
+    samples["activated"] = samples["forced_blocks"].gt(0)
+    samples["hit_delta"] = samples["hit_forced"] - samples["hit_baseline"]
+    samples["outcome"] = samples["hit_forced"].map({1: "corrected", 0: "still_wrong"})
+    samples["manifest_sha256"] = manifest.digest
+    samples["result_path"] = str(result_path)
+
+    summary_rows = []
+    scopes = [("overall", samples)]
+    scopes.extend(
+        (f"category:{category}", subset)
+        for category, subset in samples.groupby("category", dropna=False)
+    )
+    for scope, subset in scopes:
+        summary_rows.append({
+            "scope": scope,
+            "samples": len(subset),
+            "baseline_accuracy": float(subset["hit_baseline"].mean()),
+            "forced_accuracy": float(subset["hit_forced"].mean()),
+            "accuracy_delta": float(subset["hit_delta"].mean()),
+            "corrected": int(subset["hit_forced"].eq(1).sum()),
+            "still_wrong": int(subset["hit_forced"].eq(0).sum()),
+            "activation_rate": float(subset["activated"].mean()),
+            "force_compliance": float(subset["activated"].mean()),
+        })
+    summary = pd.DataFrame(summary_rows)
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_dir / "latent_rescue_summary.md"
+    summary_path = output_dir / "latent_rescue_summary.csv"
+    samples_path = output_dir / "latent_rescue_samples.csv"
+    summary.to_csv(summary_path, index=False)
+    samples.to_csv(samples_path, index=False)
+
+    lines = [
+        "# VStarBench targeted latent-rescue evaluation",
+        "",
+        "Target predicate: natural latent block count is zero and baseline hit is zero.",
+        "",
+        "| Scope | N | Baseline accuracy | Forced accuracy | Paired delta | Corrected | Still wrong | Force compliance |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for row in summary.itertuples():
+        lines.append(
+            f"| {row.scope} | {int(row.samples)} | {_percent(row.baseline_accuracy)} | "
+            f"{_percent(row.forced_accuracy)} | {row.accuracy_delta * 100:+.2f} pp | "
+            f"{int(row.corrected)} | {int(row.still_wrong)} | {_percent(row.force_compliance)} |"
+        )
+    lines.extend([
+        "",
+        "This is an oracle-conditioned diagnostic: target selection uses judged baseline errors,",
+        "so it does not represent a deployable routing policy.",
+        "",
+    ])
+    markdown_path.write_text("\n".join(lines), encoding="utf-8")
+    return markdown_path, summary_path, samples_path
+
+
 def _default_system_prompt() -> str:
     return (
         "You are a helpful multimodal assistant. You are required to answer the "
@@ -735,6 +925,39 @@ def _analyze_command(args: argparse.Namespace) -> None:
     print("[latent-policy] wrote " + ", ".join(str(path) for path in paths))
 
 
+def _create_rescue_command(args: argparse.Namespace) -> None:
+    paths = prepare_rescue_policy(
+        baseline_path=args.baseline,
+        dataset=args.dataset,
+        targets_output=args.targets_output,
+        manifest_output=args.output,
+        model_path=args.model_path,
+        latent_size=args.latent_size,
+        max_new_tokens=args.max_new_tokens,
+        max_pixels=args.max_pixels,
+        system_prompt=args.system_prompt,
+        latent_start_id=args.latent_start_id,
+        latent_end_id=args.latent_end_id,
+    )
+    manifest = LatentPolicyManifest.load(paths[1])
+    policy = manifest.datasets[args.dataset]
+    print(
+        f"[latent-policy] rescue targets={policy.total} forced={len(policy.forced_indices)} "
+        f"sha256={manifest.digest}"
+    )
+
+
+def _analyze_rescue_command(args: argparse.Namespace) -> None:
+    paths = analyze_rescue_run(
+        baseline_path=args.baseline,
+        targets_path=args.targets,
+        run_dir=args.run_dir,
+        output_dir=args.output_dir,
+        dataset=args.dataset,
+    )
+    print("[latent-policy] wrote " + ", ".join(str(path) for path in paths))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -765,6 +988,34 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--output-dir", required=True)
     analyze.add_argument("--dataset", default="VStarBench")
     analyze.set_defaults(func=_analyze_command)
+
+    create_rescue = subparsers.add_parser(
+        "create-rescue", help="force all natural-inactive incorrect baseline samples"
+    )
+    create_rescue.add_argument("--baseline", required=True)
+    create_rescue.add_argument("--dataset", default="VStarBench")
+    create_rescue.add_argument("--targets-output", required=True)
+    create_rescue.add_argument("--output", required=True, help="policy manifest output")
+    create_rescue.add_argument("--model-path", required=True)
+    create_rescue.add_argument("--latent-size", type=int, required=True)
+    create_rescue.add_argument("--max-new-tokens", type=int, default=2048)
+    create_rescue.add_argument("--max-pixels", type=int, default=1280 * 28 * 28)
+    create_rescue.add_argument(
+        "--system-prompt", default=os.environ.get("MONET_SYSTEM_PROMPT", _default_system_prompt())
+    )
+    create_rescue.add_argument("--latent-start-id", type=int, default=151666)
+    create_rescue.add_argument("--latent-end-id", type=int, default=151667)
+    create_rescue.set_defaults(func=_create_rescue_command)
+
+    analyze_rescue = subparsers.add_parser(
+        "analyze-rescue", help="analyze a completed targeted latent-rescue run"
+    )
+    analyze_rescue.add_argument("--baseline", required=True)
+    analyze_rescue.add_argument("--targets", required=True)
+    analyze_rescue.add_argument("--run-dir", required=True)
+    analyze_rescue.add_argument("--output-dir", required=True)
+    analyze_rescue.add_argument("--dataset", default="VStarBench")
+    analyze_rescue.set_defaults(func=_analyze_rescue_command)
     return parser
 
 

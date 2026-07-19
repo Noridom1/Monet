@@ -14,6 +14,7 @@ run_monet.py, so the subset TSV is used as-is at eval time.
 Usage:
   python eval_subset.py --dataset MMBench_DEV_EN --mode head   --frac 0.1
   python eval_subset.py --dataset MMBench_DEV_EN --mode random --n 200 --seed 0
+  python eval_subset.py --dataset VStarBench --mode indices --indices-file targets.csv
   python eval_subset.py --dataset MMBench_DEV_EN --mode restore        # undo, back to full
 """
 import argparse
@@ -23,6 +24,8 @@ import sys
 
 from vlmeval.smp import LMUDataRoot, load, dump
 from vlmeval.dataset import build_dataset
+
+from latent_policy import canonical_index
 
 
 def ensure_full(name):
@@ -50,10 +53,11 @@ def drop_localized(root, name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True)
-    ap.add_argument("--mode", required=True, choices=["head", "random", "restore"])
+    ap.add_argument("--mode", required=True, choices=["head", "random", "indices", "restore"])
     ap.add_argument("--frac", type=float, default=None, help="fraction in (0, 1], e.g. 0.1 for first/random 10%%")
     ap.add_argument("--n", type=int, default=None, help="absolute number of samples")
     ap.add_argument("--seed", type=int, default=0, help="seed for --mode random")
+    ap.add_argument("--indices-file", default=None, help="CSV/XLSX/TSV containing an index column")
     args = ap.parse_args()
 
     root, tsv, full = ensure_full(args.dataset)
@@ -62,6 +66,43 @@ def main():
         shutil.copy(full, tsv)
         drop_localized(root, args.dataset)
         print(f"[subset] restored full dataset: {args.dataset} ({len(load(tsv))} rows)")
+        return
+
+    if args.mode == "indices":
+        if args.indices_file is None:
+            sys.exit("[subset] ERROR: --mode indices requires --indices-file.")
+        if args.frac is not None or args.n is not None:
+            sys.exit("[subset] ERROR: --mode indices cannot be combined with --frac or --n.")
+
+        from latent_policy import _load_table
+
+        requested = _load_table(args.indices_file)
+        if "index" not in requested.columns:
+            sys.exit(f"[subset] ERROR: indices file lacks an index column: {args.indices_file}")
+        if requested.empty:
+            sys.exit("[subset] ERROR: indices file contains no rows.")
+
+        requested_keys = [canonical_index(index) for index in requested["index"]]
+        if len(requested_keys) != len(set(requested_keys)):
+            sys.exit("[subset] ERROR: indices file contains duplicate indices.")
+
+        df = load(full)
+        dataset_keys = df["index"].map(canonical_index)
+        if dataset_keys.duplicated().any():
+            sys.exit(f"[subset] ERROR: full dataset {args.dataset} contains duplicate indices.")
+        missing = sorted(set(requested_keys) - set(dataset_keys))
+        if missing:
+            preview = ", ".join(missing[:5])
+            sys.exit(f"[subset] ERROR: {len(missing)} requested indices are absent: {preview}")
+
+        requested_set = set(requested_keys)
+        sub = df[dataset_keys.isin(requested_set)]
+        dump(sub, tsv)
+        drop_localized(root, args.dataset)
+        print(
+            f"[subset] {args.dataset}: indices {len(sub)}/{len(df)} rows "
+            f"-> {os.path.basename(tsv)}"
+        )
         return
 
     if (args.frac is None) == (args.n is None):

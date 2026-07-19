@@ -5,11 +5,12 @@
 #   SUBSET=full           run the whole dataset (default)
 #   SUBSET=head           first k% / first N samples (deterministic)
 #   SUBSET=random         random k% / random N samples (seeded by SEED)
+#   SUBSET=indices        exact rows listed in INDICES_FILE
 # Size is given by exactly one of:
 #   FRAC=0.1              fraction, e.g. 10%
 #   N=200                 absolute count
 #
-# Each dataset's official TSV is restored to full before this run, then (for head/random)
+# Each dataset's official TSV is restored to full before this run, then (for subset modes)
 # re-subsetted, so runs are reproducible and never accumulate. Official dataset names are
 # used, so official evaluators/metrics apply.
 set -euo pipefail
@@ -56,10 +57,11 @@ fi
 # --- datasets + subset selection -------------------------------------------
 # Space-separated official VLMEvalKit dataset names.
 DATASETS="${DATASETS:-MMBench_DEV_EN}"
-SUBSET="${SUBSET:-full}"            # full | head | random
+SUBSET="${SUBSET:-full}"            # full | head | random | indices
 FRAC="${FRAC:-}"                   # e.g. 0.1
 N="${N:-}"                         # e.g. 200
 SEED="${SEED:-0}"
+INDICES_FILE="${INDICES_FILE:-}"
 
 # --- judge (README: replace exact match with an API judge) -----------------
 # Set JUDGE to an API model name (e.g. gpt-4o-mini, or a DeepSeek/Gemini-compatible
@@ -77,7 +79,8 @@ case "$SUBSET" in
   full)   WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/full}";;
   head)   WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/head_${FRAC:-$N}}";;
   random) WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/random_${FRAC:-$N}_seed${SEED}}";;
-  *) echo "[run-eval] ERROR: SUBSET must be full|head|random (got '$SUBSET')" >&2; exit 1;;
+  indices) WORK_DIR="${WORK_DIR:-$REPO_DIR/eval_outputs/indices}";;
+  *) echo "[run-eval] ERROR: SUBSET must be full|head|random|indices (got '$SUBSET')" >&2; exit 1;;
 esac
 
 if [ ! -d "$MODEL_PATH" ]; then
@@ -88,10 +91,21 @@ if [ ! -f "$EVAL_DIR/run_monet.py" ]; then
   echo "[run-eval] ERROR: VLMEvalKit not set up. Run 03_setup_eval.sh first." >&2
   exit 1
 fi
-if [ "$SUBSET" != "full" ]; then
+if [ "$SUBSET" = "head" ] || [ "$SUBSET" = "random" ]; then
   if { [ -n "$FRAC" ] && [ -n "$N" ]; } || { [ -z "$FRAC" ] && [ -z "$N" ]; }; then
     echo "[run-eval] ERROR: for SUBSET=$SUBSET set exactly one of FRAC or N." >&2; exit 1
   fi
+fi
+if [ "$SUBSET" = "indices" ]; then
+  if [ -z "$INDICES_FILE" ] || [ ! -f "$INDICES_FILE" ]; then
+    echo "[run-eval] ERROR: SUBSET=indices requires an existing INDICES_FILE" >&2
+    exit 1
+  fi
+  if [ -n "$FRAC" ] || [ -n "$N" ]; then
+    echo "[run-eval] ERROR: SUBSET=indices cannot be combined with FRAC or N" >&2
+    exit 1
+  fi
+  INDICES_FILE="$(realpath -m "$INDICES_FILE")"
 fi
 
 # Refresh tracked Monet integration files on every run. 03_setup_eval.sh is still
@@ -118,9 +132,12 @@ fi
 # --- prepare each dataset's TSV (restore to full, then subset if requested) -
 for d in $DATASETS; do
   python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$d" --mode restore
-  if [ "$SUBSET" != "full" ]; then
+  if [ "$SUBSET" = "head" ] || [ "$SUBSET" = "random" ]; then
     SIZE_ARGS=(); [ -n "$FRAC" ] && SIZE_ARGS+=(--frac "$FRAC"); [ -n "$N" ] && SIZE_ARGS+=(--n "$N")
     python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$d" --mode "$SUBSET" --seed "$SEED" "${SIZE_ARGS[@]}"
+  elif [ "$SUBSET" = "indices" ]; then
+    python "$REPO_DIR/run_scripts/eval_subset.py" --dataset "$d" --mode indices \
+      --indices-file "$INDICES_FILE"
   fi
 done
 

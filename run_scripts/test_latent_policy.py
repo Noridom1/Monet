@@ -15,11 +15,13 @@ from run_scripts.latent_policy import (
     SUPPRESS_ELSEWHERE_MODE,
     SUPPRESS_LATENT_START_POLICY,
     LatentPolicyManifest,
+    analyze_rescue_run,
     analyze_runs,
     attach_policy_to_sampling_params,
     build_manifest,
     canonical_index,
     manifest_sha256,
+    prepare_rescue_policy,
     select_forced_indices,
     validate_policy_block_count,
     write_manifest,
@@ -268,6 +270,75 @@ class LatentPolicyTest(unittest.TestCase):
             {FORCE_FIRST_POLICY, SUPPRESS_LATENT_START_POLICY},
         )
         self.assertIn("Shared suppressed outputs matching", markdown.read_text())
+
+    def test_targeted_rescue_selects_and_analyzes_only_inactive_errors(self):
+        baseline = pd.DataFrame({
+            "index": list(range(6)),
+            "category": ["direct_attributes"] * 3 + ["relative_position"] * 3,
+            "prediction": [
+                "a\n<ltnt:0>",
+                "b\n<ltnt:0>",
+                "c\n<ltnt:1>",
+                "d\n<ltnt:0>",
+                "e\n<ltnt:0>",
+                "f\n<ltnt:1>",
+            ],
+            "hit": [0, 1, 0, 0, 0, 1],
+        })
+        baseline_path = self.root / "rescue_baseline.xlsx"
+        baseline.to_excel(baseline_path, index=False)
+        run_dir = self.root / "rescue_run"
+        targets_path, manifest_path = prepare_rescue_policy(
+            baseline_path=baseline_path,
+            dataset="VStarBench",
+            targets_output=self.root / "target_samples.csv",
+            manifest_output=run_dir / "policy_manifest.json",
+            model_path=self.model_path,
+            latent_size=16,
+            max_new_tokens=2048,
+            max_pixels=1003520,
+            system_prompt="test prompt",
+        )
+
+        targets = pd.read_csv(targets_path)
+        self.assertEqual(list(targets["index"]), [0, 3, 4])
+        manifest = LatentPolicyManifest.load(manifest_path)
+        self.assertEqual(manifest.raw["targeting"]["target_count"], 3)
+        self.assertTrue(
+            all(
+                manifest.policy_for("VStarBench", index) == FORCE_FIRST_POLICY
+                for index in targets["index"]
+            )
+        )
+
+        result = targets[["index", "category"]].copy()
+        result["prediction"] = [
+            "forced-a\n<ltnt:1>",
+            "forced-d\n<ltnt:1>",
+            "forced-e\n<ltnt:1>",
+        ]
+        result["hit"] = [1, 0, 1]
+        result_dir = run_dir / "Monet" / "T20260714-000000"
+        result_dir.mkdir(parents=True)
+        result.to_excel(result_dir / "Monet_VStarBench_judge_result.xlsx", index=False)
+
+        markdown, summary, samples = analyze_rescue_run(
+            baseline_path=baseline_path,
+            targets_path=targets_path,
+            run_dir=run_dir,
+            output_dir=self.root / "rescue_analysis",
+            dataset="VStarBench",
+        )
+        self.assertTrue(markdown.is_file())
+        summary_data = pd.read_csv(summary)
+        overall = summary_data.query("scope == 'overall'").iloc[0]
+        self.assertEqual(overall["samples"], 3)
+        self.assertEqual(overall["corrected"], 2)
+        self.assertEqual(overall["still_wrong"], 1)
+        self.assertAlmostEqual(overall["forced_accuracy"], 2 / 3)
+        self.assertEqual(overall["force_compliance"], 1.0)
+        sample_data = pd.read_csv(samples)
+        self.assertEqual(set(sample_data["outcome"]), {"corrected", "still_wrong"})
 
 
 if __name__ == "__main__":
