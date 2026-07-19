@@ -46,8 +46,8 @@ fi
 echo "[setup-eval] pip install -e VLMEvalKit"
 pip install -e "$EVAL_DIR"
 # VLMEvalKit's deps may bump vllm/transformers; the Monet runner requires these exact pins.
-echo "[setup-eval] restoring required pins (vllm==0.10.0, transformers==4.54.0)"
-pip install "vllm==0.10.0" "transformers==4.54.0" qwen-vl-utils
+echo "[setup-eval] restoring required pins and evaluation extras"
+pip install "vllm==0.10.0" "transformers==4.54.0" qwen-vl-utils rouge-score
 
 # --- 3. drop the Monet runner in as an importable package ------------------
 mkdir -p "$EVAL_DIR/Monet_models"

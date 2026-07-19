@@ -105,6 +105,83 @@ MODEL_PATH=/content/Monet/models/Monet-7B \
 bash run_scripts/02_run_inference.sh
 ```
 
+## Running the four Table 3 evaluations
+
+Run these commands inside the same Colab console after the environment, model,
+and evaluation datasets above are ready. An A100 is required for the bundled
+Monet vLLM V1 runner.
+
+First, ensure `/content/Monet/.env` contains the NVIDIA judge configuration.
+Do not commit this file or paste the key into a notebook cell that will be
+shared:
+
+```bash
+JUDGE_BASE_URL=https://integrate.api.nvidia.com/v1
+JUDGE_API_KEY=<your-NVIDIA-API-key>
+JUDGE_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning
+JUDGE_RPM=40
+JUDGE_CONCURRENCY=1
+```
+
+Load the file into the current console. `04_run_eval.sh` does not load `.env`
+or map `JUDGE_MODEL` itself, so both steps below are required. `JUDGE_RPM` is
+kept as configuration metadata; the current evaluation launcher does not apply
+an RPM limiter.
+
+```bash
+cd /content/Monet
+set -a
+source .env
+set +a
+
+export JUDGE="$JUDGE_MODEL"
+export MODEL_PATH=/content/Monet/models/Monet-7B
+export LATENT_SIZE=16
+export LMUData=/content/LMUData
+export WORK_DIR=/content/Monet/eval_outputs/table3/latent_16
+export REUSE=0
+```
+
+Install and wire the pinned VLMEvalKit checkout once per fresh runtime:
+
+```bash
+bash run_scripts/03_setup_eval.sh
+```
+
+Run each dataset. They share `WORK_DIR`, but VLMEvalKit writes each dataset's
+results under its own filename in `WORK_DIR/Monet/`:
+
+```bash
+DATASETS=VStarBench bash run_scripts/04_run_eval.sh
+DATASETS=HRBench4K bash run_scripts/04_run_eval.sh
+DATASETS=HRBench8K bash run_scripts/04_run_eval.sh
+DATASETS=MME-RealWorld-Lite bash run_scripts/04_run_eval.sh
+```
+
+Every prediction is annotated with `<ltnt:N>`, where `N` is the number of
+captured latent blocks. Generate the aggregate score and activation artifacts
+after the evaluations complete (this does not rerun inference):
+
+```bash
+python run_scripts/summarize_table3.py \
+  --work-dir /content/Monet/eval_outputs/table3 \
+  --latent-sizes 8 10 12 16 \
+  --datasets VStarBench HRBench4K HRBench8K MME-RealWorld-Lite
+```
+
+For a single completed RealWorld run, use:
+
+```bash
+python run_scripts/summarize_table3.py \
+  --work-dir /content/Monet/eval_outputs/table3_realworld \
+  --latent-sizes 10 \
+  --datasets MME-RealWorld-Lite
+```
+
+The command writes `table3_summary.md`, `table3_by_latent_size.csv`,
+`table3_best.csv`, `latent_activation_details.csv`, and `summary_metadata.json`
+into the specified work directory.
+
 ## A100 and T4 expectations
 
 The Monet inference patch forces vLLM V1. A T4 has compute capability 7.5, but
