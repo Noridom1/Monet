@@ -19,17 +19,27 @@ set -euo pipefail
 ENV_NAME="${ENV_NAME:-monet}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVAL_DIR="${EVAL_DIR:-$REPO_DIR/VLMEvalKit}"
+VLMEVALKIT_REF="${VLMEVALKIT_REF:-3fb3b5b}"
 
 CONDA_BASE="${CONDA_BASE:-$HOME/miniconda3}"
 source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
-# --- 1. clone VLMEvalKit ---------------------------------------------------
+# --- 1. clone or reuse the pinned external checkout ------------------------
 if [ ! -d "$EVAL_DIR/.git" ]; then
   echo "[setup-eval] cloning VLMEvalKit -> $EVAL_DIR"
   git clone https://github.com/open-compass/VLMEvalKit.git "$EVAL_DIR"
+  git -C "$EVAL_DIR" checkout --detach "$VLMEVALKIT_REF"
 else
   echo "[setup-eval] VLMEvalKit already present at $EVAL_DIR, reusing"
+fi
+
+actual_ref="$(git -C "$EVAL_DIR" rev-parse HEAD)"
+expected_ref="$(git -C "$EVAL_DIR" rev-parse "$VLMEVALKIT_REF^{commit}")"
+if [ "$actual_ref" != "$expected_ref" ]; then
+  echo "[setup-eval] ERROR: VLMEvalKit is at $actual_ref, expected $VLMEVALKIT_REF" >&2
+  echo "[setup-eval] Set VLMEVALKIT_REF explicitly or initialize a clean checkout." >&2
+  exit 1
 fi
 
 # --- 2. install VLMEvalKit, then restore the inference pins -----------------
@@ -46,19 +56,22 @@ cp "$REPO_DIR/inference/vllm/latent_policy_logits.py" "$EVAL_DIR/Monet_models/"
 : > "$EVAL_DIR/Monet_models/__init__.py"   # make it a package
 echo "[setup-eval] copied Monet runner and latent-policy logits helper -> Monet_models/"
 
-# Pass the current dataset index to models that implement Monet's optional
-# per-sample policy hook. Keep this as a checked patch so upstream drift fails
-# visibly instead of applying an intervention to the wrong sample.
-CONTEXT_PATCH="$REPO_DIR/run_scripts/vlmeval_sample_context.patch"
-if git -C "$EVAL_DIR" apply --reverse --check "$CONTEXT_PATCH" >/dev/null 2>&1; then
-  echo "[setup-eval] sample-context patch already applied"
-elif git -C "$EVAL_DIR" apply --check "$CONTEXT_PATCH" >/dev/null 2>&1; then
-  git -C "$EVAL_DIR" apply "$CONTEXT_PATCH"
-  echo "[setup-eval] applied sample-context patch"
-else
-  echo "[setup-eval] ERROR: VLMEvalKit inference.py does not match the policy patch" >&2
-  exit 1
-fi
+# Apply checked patches so upstream drift fails visibly instead of silently
+# changing which code receives the Monet integration.
+apply_patch_once() {
+  local patch_file="$1"
+  if git -C "$EVAL_DIR" apply --reverse --check "$patch_file" >/dev/null 2>&1; then
+    echo "[setup-eval] patch already applied: $(basename "$patch_file")"
+  elif git -C "$EVAL_DIR" apply --check "$patch_file" >/dev/null 2>&1; then
+    git -C "$EVAL_DIR" apply "$patch_file"
+    echo "[setup-eval] applied: $(basename "$patch_file")"
+  else
+    echo "[setup-eval] ERROR: cannot apply $(basename "$patch_file")" >&2
+    exit 1
+  fi
+}
+apply_patch_once "$REPO_DIR/run_scripts/vlmeval_sample_context.patch"
+apply_patch_once "$REPO_DIR/run_scripts/vlmeval_api_diagnostics.patch"
 
 # --- 4a. sitecustomize.py (runs in EVERY python process; keep it minimal) --
 cat > "$EVAL_DIR/sitecustomize.py" <<'PYCODE'

@@ -183,38 +183,15 @@ We evalutate Monet-7B on [VLMEvalKit](https://github.com/open-compass/VLMEvalKit
 **How to apply Monet inference in VLMEvalKit:**
 
 - Make sure you use `vllm==0.10.0` for you evaluation environment.
-- Clone the VLMEvalKit repo: 
-  
-   ```bash
-   git clone https://github.com/open-compass/VLMEvalKit.git 
-   ```
-- Copy `monet_gpu_model_runner.py` to a sub-directory of the VLMEvalKit repo:
-  
-  ```bash
-    mkdir -p xxx/VLMEvalKit/Monet_models
-    cp xxx/Monet/inference/vllm/monet_gpu_model_runner.py xxx/VLMEvalKit/Monet_models
-    ```
+- VLMEvalKit is an external checkout at `./VLMEvalKit`, ignored by this repo.
+  Run `bash run_scripts/03_setup_eval.sh`; it clones the pinned revision,
+  applies the tracked Monet patches, installs it, and writes the runtime helpers.
+  Use `EVAL_DIR=/path/to/VLMEvalKit` and `VLMEVALKIT_REF=...` to initialize it
+  elsewhere or select a different tested revision.
 
-- In `xxx/VLMEvalKit/`, run the following script to create `sitecustomized.py` with the required content:
-
-  ```bash
-  cd xxx/VLMEvalKit/
-  cat > sitecustomized.py <<'PYCODE'
-  # sitecustomize.py (top-level)
-  # Runs in every Python process (parent + spawned workers)
-
-  import os, sys, importlib
-  os.environ["VLLM_USE_V1"] = "1"  # force V1 engine if desired
-  os.environ["VLLM_NO_USAGE_STATS"] = "1"  # disable usage stats
-  workspace = os.path.abspath(".")
-  old_path = os.environ.get("PYTHONPATH", "")
-  os.environ["PYTHONPATH"] = f"{workspace}:{old_path}" if old_path else workspace
-  os.environ["LATENT_START_ID"] = "151666"
-  os.environ["LATENT_END_ID"] = "151667"
-  sys.modules["vllm.v1.worker.gpu_model_runner"] = importlib.import_module("Monet_models.monet_gpu_model_runner")
-  PYCODE
-  ```
-  `sitecustomized.py` will overwrite the corresponding vLLM inference code (`vllm.v1.worker.gpu_model_runner`) with `monet_gpu_model_runner.py` when running codes under the VLMEvalKit directory so that Monet is fulfiled: the logic of `monet_gpu_model_runner.py` is that when model output the start token of latent reasoning (151666), the decoding will be switched to the latent mode.
+  The script is idempotent and checks the checkout revision before applying
+  patches. Do not manually edit the external checkout unless you intend to
+  maintain those changes separately.
 
 
 ⚠**Note that:**
@@ -245,4 +222,3 @@ We sincerely thank the following great works as they provide valuable data or co
 * [EasyR1](https://github.com/hiyouga/EasyR1)
 * [VLMEvalKit](https://github.com/open-compass/VLMEvalKit)
 * [Mirage](https://github.com/UMass-Embodied-AGI/Mirage)
-

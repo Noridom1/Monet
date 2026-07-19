@@ -5,6 +5,7 @@ set -euo pipefail
 
 ENV_NAME="${ENV_NAME:-monet}"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONDA_CHANNEL="${CONDA_CHANNEL:-}"
 
 # --- locate & load conda --------------------------------------------------
 CONDA_BASE="${CONDA_BASE:-$HOME/miniconda3}"
@@ -13,7 +14,12 @@ source "$CONDA_BASE/etc/profile.d/conda.sh"
 # --- create env if missing ------------------------------------------------
 if ! conda env list | grep -qE "^\s*${ENV_NAME}\s"; then
   echo "[setup] creating conda env '${ENV_NAME}' (python=3.10)"
-  conda create -y -n "$ENV_NAME" python=3.10
+  if [ -n "$CONDA_CHANNEL" ]; then
+    conda create -y -n "$ENV_NAME" python=3.10 \
+      --override-channels --channel "$CONDA_CHANNEL"
+  else
+    conda create -y -n "$ENV_NAME" python=3.10
+  fi
 else
   echo "[setup] conda env '${ENV_NAME}' already exists, reusing"
 fi
