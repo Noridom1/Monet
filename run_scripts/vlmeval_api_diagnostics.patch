@@ -1,0 +1,36 @@
+diff --git a/vlmeval/api/gpt.py b/vlmeval/api/gpt.py
+--- a/vlmeval/api/gpt.py
++++ b/vlmeval/api/gpt.py
+@@ -56,4 +56,15 @@ def _collect_streaming_content(response, verbose=False):
+     return answer
+ 
+ 
++def _summarize_response_body(text, secret='', limit=1200):
++    if text is None:
++        return '<empty>'
++    body = str(text).strip()
++    if secret:
++        body = body.replace(secret, '[REDACTED]')
++    if len(body) > limit:
++        body = body[:limit] + '...<truncated>'
++    return body
++
++
+ def GPT_context_window(model):
+@@ -314,6 +325,14 @@ class OpenAIWrapper(BaseAPI):
+                 answer = _collect_streaming_content(response, verbose=self.verbose)
+             else:
+                 resp_struct = json.loads(response.text)
+-                answer = resp_struct['choices'][0]['message']['content'].strip()
++                choices = resp_struct.get('choices') if isinstance(resp_struct, dict) else None
++                if not choices:
++                    logger.error(
++                        'OpenAI-compatible API response missing choices: '
++                        f'status={response.status_code} '
++                        f'body={_summarize_response_body(response.text, self.key)}'
++                    )
++                else:
++                    answer = choices[0]['message']['content'].strip()
+         except Exception as err:
+             logger.error(f'{type(err)}: {err}')
+             if self.verbose:

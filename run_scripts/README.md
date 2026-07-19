@@ -10,7 +10,7 @@ bash run_scripts/01_download_model.sh   # download NOVAglow646/Monet-7B -> model
 bash run_scripts/02_run_inference.sh    # run the example (images/example_question.png)
 
 # --- evaluation (VLMEvalKit) ---
-bash run_scripts/03_setup_eval.sh                       # clone+install VLMEvalKit, wire in Monet (once)
+bash run_scripts/03_setup_eval.sh                       # clone+install pinned VLMEvalKit, wire in Monet (once)
 DATASETS="MMBench_DEV_EN" bash run_scripts/04_run_eval.sh                       # full eval
 DATASETS="MMBench_DEV_EN" SUBSET=head   FRAC=0.1 bash run_scripts/04_run_eval.sh   # first 10%
 DATASETS="MMBench_DEV_EN" SUBSET=random N=200    bash run_scripts/04_run_eval.sh   # random 200
@@ -29,8 +29,9 @@ bash run_scripts/05_prepare_data.sh MyBench --repo org/MyBench --split test   # 
   `requirements.txt` (vllm==0.10.0, transformers==4.54.0, ...) plus the HF downloader CLI.
 - **01_download_model.sh** — downloads the model to `models/Monet-7B`.
 - **02_run_inference.sh** — sets `LATENT_SIZE`, points the example at the model, and runs it.
-- **03_setup_eval.sh** — clones VLMEvalKit into `./VLMEvalKit`, installs it into the `monet`
-  env (then restores the `vllm==0.10.0` / `transformers==4.54.0` pins the Monet runner needs),
+- **03_setup_eval.sh** — clones or reuses the pinned external VLMEvalKit checkout in `./VLMEvalKit`,
+  applies the tracked Monet patches, and installs it into the `monet` env (then restores the
+  `vllm==0.10.0` / `transformers==4.54.0` pins the Monet runner needs),
   copies `monet_gpu_model_runner.py` into `VLMEvalKit/Monet_models/`, and writes two helper files:
   `sitecustomize.py` (swaps in the Monet vLLM runner in every process) and `run_monet.py`
   (registers the `Monet` model + the required system prompt, and disables md5 TSV re-download).
