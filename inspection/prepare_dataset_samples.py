@@ -1,4 +1,4 @@
-"""Adapt a prepared dataset (``run_scripts/prepare_dataset.py`` output) into an inspection
+"""Adapt a prepared dataset (``run_scripts/evaluation/prepare_dataset.py`` output) into an inspection
 manifest the Phase A/B pipeline can consume.
 
 ``prepare_dataset.py`` writes ``data/<name>/{images/, samples.json}`` where ``samples.json``
@@ -24,7 +24,7 @@ Usage:
 
 Then inspect:
     MANIFEST=data/VisualPuzzles/inspect_manifest.json \
-    OUT_DIR=inspection/outputs/VisualPuzzles bash inspection/run_batch.sh
+    OUT_DIR=inspection/outputs/VisualPuzzles bash run_scripts/latent_inspection/run_batch.sh
 """
 import os
 import json
@@ -89,7 +89,7 @@ def main():
 
     src = os.path.join(args.data_dir, "samples.json")
     if not os.path.isfile(src):
-        raise SystemExit(f"[prepare-ds] '{src}' not found. Run run_scripts/05_prepare_data.sh first.")
+        raise SystemExit(f"[prepare-ds] '{src}' not found. Run run_scripts/evaluation/prepare_data.sh first.")
     with open(src) as f:
         rows = json.load(f)
     if not isinstance(rows, list):
@@ -143,7 +143,7 @@ def main():
         json.dump(manifest, f, indent=2, ensure_ascii=False)
     print(f"[prepare-ds] wrote {len(samples)} samples ({args.mode} of {len(rows)}) -> {out_path}")
     print(f"[prepare-ds] next: MANIFEST={out_path} "
-          f"OUT_DIR=inspection/outputs/{dataset_name} bash inspection/run_batch.sh")
+          f"OUT_DIR=inspection/outputs/{dataset_name} bash run_scripts/latent_inspection/run_batch.sh")
 
 
 if __name__ == "__main__":

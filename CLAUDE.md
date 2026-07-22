@@ -70,7 +70,7 @@ After training, FSDP shards must be merged: `bash RL/examples/merge_model.sh` (`
 ```bash
 conda activate monet
 export LATENT_SIZE=10
-python -m inference.vllm_inference_example   # see inference/example.sh
+python -m inference.vllm_inference_example   # see run_scripts/inference/run_example.sh
 ```
 
 Output post-processing: detect `<abs_vis_token>` and replace the enclosed (non-human-readable) latent tokens with a placeholder like `<latent>`.

@@ -5,17 +5,17 @@ description: Create or reuse a Google Colab CLI GPU session, package and transfe
 
 # Prepare a Monet Colab session
 
-Use `run_scripts/colab/prepare_session.sh` from the repository root. Do not recreate its archive or transfer logic manually.
+Use `run_scripts/setup/colab.sh` from the repository root for end-to-end provisioning. Use the lower-level scripts under `run_scripts/setup/colab/` only when refreshing an individual step; do not recreate their archive or transfer logic manually.
 
 ## Execution flow
 
 1. Confirm `colab` is installed and authentication is available.
 2. Review `git status --short`. The archive intentionally includes tracked and untracked source changes.
-3. Run the preparation script. It packages source, creates the named GPU session, uploads the archive, unpacks it into `/content/Monet`, and verifies required files.
+3. Run the setup script. It packages source, creates the named GPU session, uploads the archive, unpacks it into `/content/Monet`, and verifies required files.
 4. Report the requested accelerator and the actual accelerator from `colab status`; allocation is not guaranteed merely because it was requested.
-5. When inference dependencies are requested, run `run_scripts/colab/prepare_dependencies.sh --session <session>`. It bootstraps Miniconda remotely and delegates the actual environment creation to `run_scripts/00_setup_env.sh`.
+5. The end-to-end setup bootstraps Miniconda through `run_scripts/setup/environment.sh` and downloads the requested model on every invocation. For dependency-only refreshes, run `run_scripts/setup/colab/prepare_dependencies.sh --session <session>`.
 6. Enter the runtime only when interactive work is requested: `colab console -s <session>`.
-7. Provision VLMEvalKit, models, and datasets as later, separate operations. Never upload a local conda environment or `site-packages`.
+7. Provision VLMEvalKit and evaluation datasets as later, separate operations. Never upload a local conda environment or `site-packages`.
 8. Download outputs and logs before stopping a session. Stop it only when the user requests cleanup or the task explicitly includes cleanup.
 
 ## Commands
@@ -23,26 +23,26 @@ Use `run_scripts/colab/prepare_session.sh` from the repository root. Do not recr
 Create the default A100 session with standard system RAM:
 
 ```bash
-bash run_scripts/colab/prepare_session.sh
+bash run_scripts/setup/colab.sh
 ```
 
 Create a named session or request another GPU:
 
 ```bash
-bash run_scripts/colab/prepare_session.sh --session monet-a100 --gpu A100
-bash run_scripts/colab/prepare_session.sh --session monet-t4 --gpu T4
+bash run_scripts/setup/colab.sh --session monet-a100 --gpu A100
+bash run_scripts/setup/colab.sh --session monet-t4 --gpu T4
 ```
 
 Refresh source in an existing session without allocating another runtime:
 
 ```bash
-bash run_scripts/colab/prepare_session.sh --session monet-a100 --reuse
+bash run_scripts/setup/colab.sh --session monet-a100 --gpu A100 --reuse
 ```
 
 Install or refresh the inference conda environment in an existing session:
 
 ```bash
-bash run_scripts/colab/prepare_dependencies.sh --session monet-a100
+bash run_scripts/setup/colab/prepare_dependencies.sh --session monet-a100
 ```
 
 Inspect and connect:

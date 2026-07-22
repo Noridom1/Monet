@@ -38,7 +38,7 @@ We introduce <b>Monet</b>, a training framework that enables multimodal large la
 <br>
 
 ## 🔥Updates
-* **2026.3.19** Update `inference/example.sh`: add `export LATENT_SIZE=10`; update `vllm_inference_example.py`: remove the unused `os.environ['LATENT_SIZE'] = '10'`.
+* **2026.3.19** Update `run_scripts/inference/run_example.sh`: add `export LATENT_SIZE=10`; update `vllm_inference_example.py`: remove the unused `os.environ['LATENT_SIZE'] = '10'`.
 * **2026.02.21** **Monet has been accepted by CVPR 2026!🎉**
 * **2025.12.30** Upload the models of SFT stage 1/2/3.
 * **2025.12.11** Update the prompt in ./inference/vllm_inference_example.py (add "Put your final answer in \\boxed{}.").
@@ -86,6 +86,8 @@ To support latent reasoning, we use customized Qwen2.5-VL-7B model to replace th
 ```bash
 git clone https://github.com/NOVAglow646/Monet.git
 ```
+
+For the maintained setup, inference, evaluation, and latent-inspection commands, start with [run_scripts/README.md](./run_scripts/README.md).
 
 SFT environment:
 ```bash
@@ -168,14 +170,14 @@ Please refer to `RL/tools/custom_api.py` for the exact calling interface.
 
 ## ⭐Inference
 ### Download Monet-7B Model
-You can download Monet-7B at [this repo](https://huggingface.co/NOVAglow646/Monet-7B). The inference requires replacing the official code of vLLM (see [Modified vLLM model](./monet_qwen_model/vllm/monet_gpu_model_runner.py)). 
+You can download Monet-7B at [this repo](https://huggingface.co/NOVAglow646/Monet-7B). The inference requires replacing the official code of vLLM (see [Modified vLLM model](./inference/vllm/monet_gpu_model_runner.py)).
 
 ### Inference Example
 See this [quick example](./inference/vllm_inference_example.py) to use Monet-7B with latent reasoning.
 
 
 * **Setting latent size at inference:** You can control the number of latent embeddings to generate each time the model starts latent reasoning by using: ``` export LATENT_SIZE=10  ```
-* **Handling model outputs containing latent reasoning.** To achieve latent-text interleaved reasoning, the model may generate `<abs_vis_token>` to switch to the latent thinking mode. Then, with our [modified vLLM gpu_model_runner.py](./monet_qwen_model/vllm/monet_gpu_model_runner.py), it will replace the next tokens with the representations of the last layer. Since these latent tokens are not human-readable, you can post-process the output by detecting the start token `<abs_vis_token>` and nd replacing the enclosed latent tokens with a clean placeholder such as `<latent>`.
+* **Handling model outputs containing latent reasoning.** To achieve latent-text interleaved reasoning, the model may generate `<abs_vis_token>` to switch to the latent thinking mode. Then, with our [modified vLLM gpu_model_runner.py](./inference/vllm/monet_gpu_model_runner.py), it will replace the next tokens with the representations of the last layer. Since these latent tokens are not human-readable, you can post-process the output by detecting the start token `<abs_vis_token>` and nd replacing the enclosed latent tokens with a clean placeholder such as `<latent>`.
 
 ### Evaluation
 We evalutate Monet-7B on [VLMEvalKit](https://github.com/open-compass/VLMEvalKit). Notably, we replace the original exact matching judgement with API judge to ensure more accurate assessment.
@@ -184,7 +186,7 @@ We evalutate Monet-7B on [VLMEvalKit](https://github.com/open-compass/VLMEvalKit
 
 - Make sure you use `vllm==0.10.0` for you evaluation environment.
 - VLMEvalKit is an external checkout at `./VLMEvalKit`, ignored by this repo.
-  Run `bash run_scripts/03_setup_eval.sh`; it clones the pinned revision,
+  Run `bash run_scripts/evaluation/setup_kit.sh`; it clones the pinned revision,
   applies the tracked Monet patches, installs it, and writes the runtime helpers.
   Use `EVAL_DIR=/path/to/VLMEvalKit` and `VLMEVALKIT_REF=...` to initialize it
   elsewhere or select a different tested revision.

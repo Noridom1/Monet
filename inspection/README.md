@@ -26,8 +26,8 @@ questions:
 ## Quick start — single demo example
 
 ```bash
-bash inspection/run_phase_a.sh     # -> inspection/outputs/demo/trace.pt
-bash inspection/run_phase_b.sh     # -> inspection/outputs/demo/{report.md, logit_lens.md, *.npz, heatmaps/}
+bash run_scripts/latent_inspection/capture_demo.sh     # -> inspection/outputs/demo/trace.pt
+bash run_scripts/latent_inspection/analyze_demo.sh     # -> inspection/outputs/demo/{report.md, logit_lens.md, *.npz, heatmaps/}
 ```
 
 ## Batch: inspect real eval samples (correct vs. incorrect)
@@ -38,7 +38,7 @@ can compare latent behaviour on questions the model got right vs. wrong.
 ### 1. Prepare samples into `data/`
 
 ```bash
-bash inspection/run_prepare.sh
+bash run_scripts/latent_inspection/prepare_eval_samples.sh
 # env knobs: RESULTS=<*_result.xlsx>  DATASET=MMBench_DEV_EN
 #            N_CORRECT=4  N_INCORRECT=5  SEED=0  OUT=data/inspect_samples
 ```
@@ -59,12 +59,12 @@ data/inspect_samples/
 
 > The downloaded result files carry **no images** — they live only in the source dataset TSV
 > under `~/LMUData`. If a prior eval left a *subset* TSV there, restore full first:
-> `python run_scripts/eval_subset.py --dataset MMBench_DEV_EN --mode restore`.
+> `python run_scripts/evaluation/eval_subset.py --dataset MMBench_DEV_EN --mode restore`.
 
 ### 2. Capture + analyse all samples
 
 ```bash
-bash inspection/run_batch.sh
+bash run_scripts/latent_inspection/run_batch.sh
 # env knobs: MANIFEST=data/inspect_samples/samples.json  OUT_DIR=inspection/outputs/eval_samples
 ```
 
@@ -89,7 +89,7 @@ the model's predicted letter so you can confirm.
 
 ## Batch: inspect a prepared dataset (VisualPuzzles, MathVision, …)
 
-To inspect arbitrary benchmarks downloaded with `run_scripts/05_prepare_data.sh` (which
+To inspect arbitrary benchmarks downloaded with `run_scripts/evaluation/prepare_data.sh` (which
 writes `data/<name>/{images/, samples.json}`), first adapt that into an inspection manifest.
 The two formats differ — the prepared `samples.json` is a flat list with `question`+`options`
 separate and `answer`, while Phase A/B want a `{system_prompt, samples:[…]}` manifest with
@@ -98,16 +98,16 @@ since these sets have thousands of rows (inspection is expensive), picks **N** s
 
 ```bash
 # 1. download + normalize the dataset (writes data/<name>/)
-bash run_scripts/05_prepare_data.sh VisualPuzzles
-bash run_scripts/05_prepare_data.sh MathVision --split testmini
+bash run_scripts/evaluation/prepare_data.sh VisualPuzzles
+bash run_scripts/evaluation/prepare_data.sh MathVision --split testmini
 
 # 2. adapt N samples into data/<name>/inspect_manifest.json (reuses the extracted images)
-DATA_DIR=data/VisualPuzzles N=10 MODE=head bash inspection/run_prepare_dataset.sh
-DATA_DIR=data/MathVision   N=10 MODE=random SEED=0 bash inspection/run_prepare_dataset.sh
+DATA_DIR=data/VisualPuzzles N=10 MODE=head bash run_scripts/latent_inspection/prepare_dataset_samples.sh
+DATA_DIR=data/MathVision   N=10 MODE=random SEED=0 bash run_scripts/latent_inspection/prepare_dataset_samples.sh
 
 # 3. capture + analyse — run_batch.sh is unchanged, just point MANIFEST/OUT_DIR at it
-MANIFEST=data/VisualPuzzles/inspect_manifest.json OUT_DIR=inspection/outputs/VisualPuzzles bash inspection/run_batch.sh
-MANIFEST=data/MathVision/inspect_manifest.json   OUT_DIR=inspection/outputs/MathVision   bash inspection/run_batch.sh
+MANIFEST=data/VisualPuzzles/inspect_manifest.json OUT_DIR=inspection/outputs/VisualPuzzles bash run_scripts/latent_inspection/run_batch.sh
+MANIFEST=data/MathVision/inspect_manifest.json   OUT_DIR=inspection/outputs/MathVision   bash run_scripts/latent_inspection/run_batch.sh
 ```
 
 To run both prepared datasets with `temperature=0.1` while keeping every other sampling
@@ -117,12 +117,12 @@ setting at its default, use separate output directories:
 TEMPERATURE=0.1 \
 MANIFEST=data/VisualPuzzles/inspect_manifest.json \
 OUT_DIR=inspection/outputs/VisualPuzzles-t01 \
-bash inspection/run_batch.sh
+bash run_scripts/latent_inspection/run_batch.sh
 
 TEMPERATURE=0.1 \
 MANIFEST=data/MathVision/inspect_manifest.json \
 OUT_DIR=inspection/outputs/MathVision-t01 \
-bash inspection/run_batch.sh
+bash run_scripts/latent_inspection/run_batch.sh
 ```
 
 You get the same artifacts as the eval-sample flow — per-sample `report.md` (header shows
@@ -210,10 +210,10 @@ left at their defaults:
 ```bash
 TRACE=inspection/outputs/demo-t01/trace.pt \
 TEMPERATURE=0.1 \
-bash inspection/run_phase_a.sh
+bash run_scripts/latent_inspection/capture_demo.sh
 
 TRACE=inspection/outputs/demo-t01/trace.pt \
-bash inspection/run_phase_b.sh
+bash run_scripts/latent_inspection/analyze_demo.sh
 ```
 
 The resulting trace and Phase B report are written under `inspection/outputs/demo-t01/`.
@@ -223,7 +223,7 @@ For a batch run with explicit sampling controls:
 ```bash
 TEMPERATURE=0.7 TOP_K=50 TOP_P=0.8 REPETITION_PENALTY=1.0 SEED=42 \
 MAX_NEW_TOKENS=2048 OUT_DIR=inspection/outputs/eval-t07-k50-p08-s42 \
-bash inspection/run_batch.sh
+bash run_scripts/latent_inspection/run_batch.sh
 ```
 
 Sweep the full batch pipeline over the default temperatures `0.1`, `0.3`, `0.5`, and
@@ -232,7 +232,7 @@ Sweep the full batch pipeline over the default temperatures `0.1`, `0.3`, `0.5`,
 ```bash
 MANIFEST=data/VisualPuzzles/inspect_manifest.json \
 OUT_ROOT=inspection/outputs/VisualPuzzles-temp-sweep \
-bash inspection/run_sweep_temp.sh
+bash run_scripts/latent_inspection/run_temperature_sweep.sh
 ```
 
 Override the list with a space-separated `TEMPERATURES` value, for example
@@ -256,12 +256,12 @@ denominator, consistent with answer accuracy.
 - `generate_latents.py` — Phase A capture (single `--out` or batch `--manifest`/`--out_dir`).
 - `inspect.py` — Phase B driver; `run_for_trace` (preloaded model) / `run_batch` / `run`.
 - `prepare_eval_samples.py` — build `data/inspect_samples/` from a VLMEvalKit result xlsx.
-- `prepare_dataset_samples.py` — adapt a `run_scripts/05_prepare_data.sh` dataset
+- `prepare_dataset_samples.py` — adapt a `run_scripts/evaluation/prepare_data.sh` dataset
   (`data/<name>/samples.json`) into an inspection manifest (`inspect_manifest.json`).
 - `summarize_eval.py` — score a batch run into `<out_dir>/eval_summary.json` (boxed-answer
   extraction + correctness); reads traces only, no GPU.
 - `logit_lens.py`, `attn_hook.py`, `visualize.py`, `load_model.py` — analysis helpers.
-- `run_phase_a.sh`, `run_phase_b.sh` — single-example launchers.
-- `run_prepare.sh`, `run_prepare_dataset.sh`, `run_batch.sh` — batch launchers.
+- `../run_scripts/latent_inspection/capture_demo.sh`, `analyze_demo.sh` — single-example launchers.
+- `../run_scripts/latent_inspection/prepare_*.sh`, `run_batch.sh` — batch launchers.
 
 Design notes and the validation rationale live in `__plans__/latent_inspection_plan.md`.

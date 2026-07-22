@@ -9,19 +9,19 @@ Monet contains three Python stacks. `src/` and `monet_qwen_model/` implement sup
 Use separate environments because SFT/inference and RL require incompatible vLLM versions.
 
 ```bash
-bash run_scripts/00_setup_env.sh        # create the SFT/inference environment
-bash run_scripts/02_run_inference.sh    # run the bundled image example
+bash run_scripts/setup/local.sh                  # create the environment and get the model
+bash run_scripts/inference/run_example.sh        # run the bundled image example
 python -m inspection.generate_latents --help
-bash inspection/run_phase_a.sh          # capture a demo trace
-bash inspection/run_phase_b.sh          # analyze and visualize that trace
-cd RL && make quality                    # run Ruff lint and format checks
+bash run_scripts/latent_inspection/capture_demo.sh  # capture a demo trace
+bash run_scripts/latent_inspection/analyze_demo.sh  # analyze and visualize that trace
+cd RL && make quality                              # run Ruff lint and format checks
 ```
 
 Launch SFT through `torchrun ... -m src.main`; use the stage templates in `script_examples/`. Launch RL from `RL/` with `python -m verl.trainer.main config=examples/config_monet.yaml ...` and `MONET_RL_PATCH=1`.
 
 ## Coding Style & Naming Conventions
 
-Write Python with four-space indentation, `snake_case` functions and modules, `PascalCase` classes, and uppercase environment variables such as `LATENT_SIZE`. Follow nearby typing and docstring patterns; avoid broad refactors in vendored `RL/verl/` code. RL uses Ruff with a 119-character line limit and double-quoted strings (`RL/pyproject.toml`). Keep shell scripts executable and name ordered workflows with numeric prefixes, as in `run_scripts/02_run_inference.sh`.
+Write Python with four-space indentation, `snake_case` functions and modules, `PascalCase` classes, and uppercase environment variables such as `LATENT_SIZE`. Follow nearby typing and docstring patterns; avoid broad refactors in vendored `RL/verl/` code. RL uses Ruff with a 119-character line limit and double-quoted strings (`RL/pyproject.toml`). Keep shell scripts executable and group user-facing launchers under the four `run_scripts/` workflow directories.
 
 ## Testing Guidelines
 

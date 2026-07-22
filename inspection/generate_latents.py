@@ -528,7 +528,7 @@ def main():
     print("  1. Generate the SAME example with greedy vLLM and compare the answer text")
     print("     outside the <abs_vis_token>...</abs_vis_token> block. They must match.")
     print("  2. To make vLLM greedy, set temperature=0 in inference/load_and_gen_vllm.py")
-    print("     (temperature, line ~21) and run run_scripts/02_run_inference.sh.")
+    print("     (temperature, line ~21) and run run_scripts/inference/run_example.sh.")
     print("  3. If the answers diverge, the latent BOUNDARY PROTOCOL in this file")
     print("     (decode loop) is the prime suspect — see the marked comment block.")
     print("=" * 78)

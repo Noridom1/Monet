@@ -3,7 +3,7 @@
 Status: **implemented** — all files under `inspection/` exist; pending A100 run.
   Phase A: `generate_latents.py` (validated: PASS, see §5.1 note below).
   Phase B: `logit_lens.py`, `attn_hook.py`, `inspect.py`, `visualize.py` (Objectives A+B).
-  Run order on A100: `bash inspection/run_phase_a.sh` then `bash inspection/run_phase_b.sh`.
+  Run order on A100: `bash run_scripts/latent_inspection/capture_demo.sh` then `bash run_scripts/latent_inspection/analyze_demo.sh`.
 Owner: research (LVR interpretability)
 Scope: read-only analysis tooling. No change to training/inference behaviour.
 
@@ -103,7 +103,7 @@ The one mechanism that needs runtime instrumentation (attention slicing) is inst
 | `inspection/logit_lens.py` | **Objective A.** Given hidden states `[N_latent, H]` (+ optional per-layer), apply final norm + `lm_head`, return top-k token ids/strings/probs. |
 | `inspection/inspect.py` | **Phase B driver.** Loads a trace, runs the single teacher-forced forward with hooks + `output_hidden_states`, calls logit_lens + attention extraction, writes artifacts. |
 | `inspection/visualize.py` | render latent→image heatmaps over the (resized) input image; render text→latent and per-layer/head summaries. |
-| `inspection/run_inspection.sh` | env (`LATENT_SIZE`, `MODEL_PATH`) + `python -m inspection.generate_latents …` then `python -m inspection.inspect …`. Mirrors `run_scripts/02_run_inference.sh`. |
+| `inspection/run_inspection.sh` | env (`LATENT_SIZE`, `MODEL_PATH`) + `python -m inspection.generate_latents …` then `python -m inspection.inspect …`. Mirrors `run_scripts/inference/run_example.sh`. |
 
 ### 3.2 Phase A — the HF latent-generation loop (`generate_latents.py`)
 
@@ -130,7 +130,7 @@ Re-implements the runner's latent state machine in HF (~30 lines), mirroring
    `modeling_qwen2_5_vl_monet.py:1736`.
 
 **Validation step (gate before trusting anything):** run the same example through vLLM
-(`02_run_inference.sh`) in greedy mode and assert the decoded answer text matches Phase A.
+(`run_scripts/inference/run_example.sh`) in greedy mode and assert the decoded answer text matches Phase A.
 If mismatch → masking/sampling differs and must be reconciled before proceeding.
 
 ### 3.3 Phase B attention capture — the monkey-patch (`attn_hook.py`)

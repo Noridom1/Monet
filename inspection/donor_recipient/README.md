@@ -24,7 +24,7 @@ The end-to-end launcher defaults to physical GPU 3, BF16, SDPA, seed 0, and the 
 environment. Only one 7B model is loaded at a time.
 
 ```bash
-bash inspection/donor_recipient/run_experiment.sh
+bash run_scripts/latent_inspection/run_donor_recipient.sh
 ```
 
 Important overrides:
@@ -34,7 +34,7 @@ GPU_ID=3 \
 DONOR_MODEL_PATH=models/Monet-7B \
 RECIPIENT_MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct \
 OUTPUT_DIR=inspection/donor_recipient/outputs/mmvp_seed0 \
-bash inspection/donor_recipient/run_experiment.sh
+bash run_scripts/latent_inspection/run_donor_recipient.sh
 ```
 
 For a one-target smoke test, the launcher automatically captures the second donor required
@@ -43,7 +43,7 @@ by the wrong-sample condition:
 ```bash
 GPU_ID=3 TARGET_LIMIT=1 MAX_NEW_TOKENS=32 \
 OUTPUT_DIR=inspection/donor_recipient/outputs/smoke \
-bash inspection/donor_recipient/run_experiment.sh
+bash run_scripts/latent_inspection/run_donor_recipient.sh
 ```
 
 Use a separate output directory when changing checkpoint, latent size, prompt protocol, or

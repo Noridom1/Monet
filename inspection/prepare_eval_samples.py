@@ -157,7 +157,7 @@ def main():
     for bucket, idx in chosen:
         if idx not in data.index:
             print(f"[prepare] WARNING: index {idx} not in dataset (subset TSV?); skipped. "
-                  f"Restore full: python run_scripts/eval_subset.py --dataset {args.dataset} "
+                  f"Restore full: python run_scripts/evaluation/eval_subset.py --dataset {args.dataset} "
                   f"--mode restore")
             continue
         ds_row = data.loc[idx]
